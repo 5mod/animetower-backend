@@ -374,6 +374,10 @@
                                                         "email_verified_at": {
                                                             "type": "string",
                                                             "format": "date-time"
+                                                        },
+                                                        "is_admin": {
+                                                            "type": "boolean",
+                                                            "example": false
                                                         }
                                                     },
                                                     "type": "object"
@@ -487,7 +491,8 @@
                                     "email",
                                     "phone",
                                     "password",
-                                    "password_confirmation"
+                                    "password_confirmation",
+                                    "is_admin"
                                 ],
                                 "properties": {
                                     "name": {
@@ -510,7 +515,12 @@
                                     },
                                     "password_confirmation": {
                                         "type": "string",
+                                        "format": "password",
                                         "example": "password123"
+                                    },
+                                    "is_admin": {
+                                        "type": "boolean",
+                                        "example": false
                                     }
                                 },
                                 "type": "object"
@@ -536,7 +546,7 @@
                                         "data": {
                                             "properties": {
                                                 "user": {
-                                                    "type": "object"
+                                                    "$ref": "#/components/schemas/User"
                                                 },
                                                 "token": {
                                                     "type": "string"
@@ -633,14 +643,13 @@
         "/v1/accounts/user": {
             "get": {
                 "tags": [
-                    "User Management"
+                    "Authentication"
                 ],
                 "summary": "Get authenticated user details",
-                "description": "Retrieve the current authenticated user's profile information",
                 "operationId": "b33f5eaf8dbc6a740eaa8a1c1a75bec7",
                 "responses": {
                     "200": {
-                        "description": "Success",
+                        "description": "User details retrieved successfully",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -650,7 +659,20 @@
                                             "example": "success"
                                         },
                                         "data": {
-                                            "$ref": "#/components/schemas/User"
+                                            "properties": {
+                                                "user": {
+                                                    "$ref": "#/components/schemas/User"
+                                                },
+                                                "is_admin": {
+                                                    "type": "boolean",
+                                                    "example": false
+                                                },
+                                                "email_verified": {
+                                                    "type": "boolean",
+                                                    "example": false
+                                                }
+                                            },
+                                            "type": "object"
                                         }
                                     },
                                     "type": "object"
@@ -1432,6 +1454,210 @@
                 }
             }
         },
+        "/v1/users/{user}": {
+            "put": {
+                "tags": [
+                    "User Management"
+                ],
+                "summary": "Update user role and status (Admin only)",
+                "operationId": "37a9b5d3c91b836d966dc3a3f611835d",
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "description": "User ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "is_admin"
+                                ],
+                                "properties": {
+                                    "is_admin": {
+                                        "description": "User admin status",
+                                        "type": "boolean",
+                                        "example": false
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "User role updated successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "User role updated successfully"
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/User"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Unauthorized - Admin access required"
+                    },
+                    "404": {
+                        "description": "User not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/v1/accounts/profile": {
+            "put": {
+                "tags": [
+                    "Account Management"
+                ],
+                "summary": "Update user profile",
+                "description": "Update authenticated user's profile information",
+                "operationId": "e56d576093eadf177cfc016a781f26fc",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "John Doe"
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "example": "user@example.com"
+                                    },
+                                    "phone": {
+                                        "type": "string",
+                                        "example": "+201234567890"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Profile updated successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Profile updated successfully"
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/User"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/v1/accounts/avatar": {
+            "post": {
+                "tags": [
+                    "Account Management"
+                ],
+                "summary": "Update user avatar",
+                "description": "Upload or update user profile picture. Supports JPG, JPEG, PNG, GIF, BMP, SVG, WEBP formats up to 5MB",
+                "operationId": "26d8a64e5df4a6ac2cbf96768a636671",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "properties": {
+                                    "avatar": {
+                                        "description": "User profile image (jpg, jpeg, png, gif, bmp, svg, webp up to 5MB)",
+                                        "type": "string",
+                                        "format": "binary"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Avatar updated successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Avatar updated successfully"
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/User"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/v1/genres": {
             "get": {
                 "tags": [
@@ -1812,6 +2038,15 @@
                         "type": "string",
                         "example": "+201234567890"
                     },
+                    "avatar": {
+                        "type": "string",
+                        "example": "avatars/user-avatar.jpg",
+                        "nullable": true
+                    },
+                    "is_admin": {
+                        "type": "boolean",
+                        "example": false
+                    },
                     "email_verified_at": {
                         "type": "string",
                         "format": "date-time",
@@ -1860,6 +2095,10 @@
         {
             "name": "User Management",
             "description": "User Management"
+        },
+        {
+            "name": "Account Management",
+            "description": "Account Management"
         },
         {
             "name": "Genres",

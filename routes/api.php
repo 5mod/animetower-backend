@@ -8,7 +8,9 @@ use Illuminate\Support\Facades\Mail;
 use App\Http\Controllers\Api\GenreController;
 use App\Http\Controllers\Api\AnimeController;
 use App\Http\Middleware\ForceJsonResponse;
-
+use App\Http\Middleware\IsUserVerified;
+use App\Http\Middleware\IsAdmin;
+use App\Http\Middleware\IsActive;
 // Route::get('/user', function (Request $request) {
 //     return $request->user();
 // })->middleware('auth:api');
@@ -34,19 +36,7 @@ Route::prefix('v1')->group(function () {
     Route::get('genres/{genre}', [GenreController::class, 'show']);
 
     // Protected routes
-    Route::middleware('auth:api')->group(function () {
-        // Anime CRUD operations
-        Route::post('anime', [AnimeController::class, 'store']);
-        Route::put('anime/{anime}', [AnimeController::class, 'update']);
-        Route::delete('anime/{anime}', [AnimeController::class, 'destroy']);
-        Route::post('anime/{anime}/restore', [AnimeController::class, 'restore']);
-
-        // Genre CRUD operations
-        Route::post('genres', [GenreController::class, 'store']);
-        Route::put('genres/{genre}', [GenreController::class, 'update']);
-        Route::delete('genres/{genre}', [GenreController::class, 'destroy']);
-        Route::post('genres/{genre}/restore', [GenreController::class, 'restore']);
-
+    Route::middleware(['auth:api', IsActive::class, IsUserVerified::class])->group(function () {
         // Account management
         Route::prefix('accounts')->group(function () {
             Route::get('user', [AuthController::class, 'getUser']);
@@ -55,8 +45,28 @@ Route::prefix('v1')->group(function () {
             Route::get('email/status', [AuthController::class, 'getEmailVerificationStatus']);
             Route::post('email/resend', [AuthController::class, 'resendVerificationEmail'])
                     ->middleware('throttle:6,1');
-            });
+            Route::put('profile', [AuthController::class, 'updateProfile']);
+            Route::post('avatar', [AuthController::class, 'updateAvatar']);
         });
+
+        // Admin only routes
+        Route::middleware([IsAdmin::class])->group(function () {
+            // Anime CRUD operations
+            Route::post('anime', [AnimeController::class, 'store']);
+            Route::put('anime/{anime}', [AnimeController::class, 'update']);
+            Route::delete('anime/{anime}', [AnimeController::class, 'destroy']);
+            Route::post('anime/{anime}/restore', [AnimeController::class, 'restore']);
+
+            // Genre CRUD operations
+            Route::post('genres', [GenreController::class, 'store']);
+            Route::put('genres/{genre}', [GenreController::class, 'update']);
+            Route::delete('genres/{genre}', [GenreController::class, 'destroy']);
+            Route::post('genres/{genre}/restore', [GenreController::class, 'restore']);
+
+            // User management routes
+            Route::put('users/{user}', [AuthController::class, 'updateUser']);
+        });
+    });
     });
 });
 

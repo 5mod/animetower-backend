@@ -40,18 +40,8 @@ class Kernel extends HttpKernel
      * @var array<string, class-string|string>
      */
     protected $middlewareAliases = [
-        // ... other middleware
-        'json.response' => \App\Http\Middleware\ForceJsonResponse::class,
+        // ... other middleware aliases
+        'active' => \App\Http\Middleware\IsActive::class,
     ];
 
-    /**
-     * Register the application's route middleware.
-     *
-     * These middleware may be assigned to groups or used individually.
-     *
-     * @var array<string, class-string|string>
-     */
-    protected $routeMiddleware = [
-        // ... other route middleware
-    ];
 } 

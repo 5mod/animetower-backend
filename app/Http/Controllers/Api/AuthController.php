@@ -32,6 +32,10 @@ use App\Http\Requests\VerifyEmailRequest;
 use App\Http\Requests\ResendVerificationRequest;
 use App\Models\PasswordResetCode;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+use App\Http\Requests\UpdateUserRequest;
+use App\Http\Requests\UpdateProfileRequest;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * @OA\Tag(
@@ -79,7 +83,8 @@ class AuthController extends Controller
      *                     @OA\Property(property="name", type="string", example="John Doe"),
      *                     @OA\Property(property="email", type="string", example="user@example.com"),
      *                     @OA\Property(property="phone", type="string", example="+201234567890"),
-     *                     @OA\Property(property="email_verified_at", type="string", format="date-time")
+     *                     @OA\Property(property="email_verified_at", type="string", format="date-time"),
+     *                     @OA\Property(property="is_admin", type="boolean", example=false)
      *                 ),
      *                 @OA\Property(property="token", type="string", example="eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1..."),
      *                 @OA\Property(property="token_type", type="string", example="Bearer"),
@@ -175,7 +180,8 @@ class AuthController extends Controller
                     'token' => $tokenResult->accessToken,
                     'refresh_token' => $refreshTokenId,
                     'token_type' => 'Bearer',
-                    'email_verified' => true
+                    'email_verified' => true,
+                    'is_admin' => $user->is_admin
                 ]
             ]);
         } catch (Exception $e) {
@@ -196,12 +202,13 @@ class AuthController extends Controller
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
-     *             required={"name","email","phone","password","password_confirmation"},
+     *             required={"name","email","phone","password","password_confirmation","is_admin"},
      *             @OA\Property(property="name", type="string", example="John Doe"),
      *             @OA\Property(property="email", type="string", format="email", example="user@example.com"),
      *             @OA\Property(property="phone", type="string", example="+201234567890"),
      *             @OA\Property(property="password", type="string", format="password", example="password123"),
-     *             @OA\Property(property="password_confirmation", type="string", example="password123")
+     *             @OA\Property(property="password_confirmation", type="string", format="password", example="password123"),
+     *             @OA\Property(property="is_admin", type="boolean", example=false)
      *         )
      *     ),
      *     @OA\Response(
@@ -213,7 +220,7 @@ class AuthController extends Controller
      *             @OA\Property(
      *                 property="data",
      *                 type="object",
-     *                 @OA\Property(property="user", type="object"),
+     *                 @OA\Property(property="user", ref="#/components/schemas/User"),
      *                 @OA\Property(property="token", type="string"),
      *                 @OA\Property(property="token_type", type="string", example="Bearer")
      *             )
@@ -348,18 +355,20 @@ class AuthController extends Controller
     /**
      * @OA\Get(
      *     path="/v1/accounts/user",
-     *     tags={"User Management"},
+     *     tags={"Authentication"},
      *     summary="Get authenticated user details",
-     *     description="Retrieve the current authenticated user's profile information",
      *     security={{"bearerAuth":{}}},
      *     @OA\Response(
      *         response=200,
-     *         description="Success",
+     *         description="User details retrieved successfully",
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="success"),
      *             @OA\Property(
      *                 property="data",
-     *                 ref="#/components/schemas/User"
+     *                 type="object",
+     *                 @OA\Property(property="user", ref="#/components/schemas/User"),
+     *                 @OA\Property(property="is_admin", type="boolean", example=false),
+     *                 @OA\Property(property="email_verified", type="boolean", example=false)
      *             )
      *         )
      *     ),
@@ -1043,6 +1052,224 @@ class AuthController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to send verification code',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * @OA\Put(
+     *     path="/v1/users/{user}",
+     *     tags={"User Management"},
+     *     summary="Update user role and status (Admin only)",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="user",
+     *         in="path",
+     *         description="User ID",
+     *         required=true,
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"is_admin"},
+     *             @OA\Property(property="is_admin", type="boolean", example=false, description="User admin status"),
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="User role updated successfully",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="success"),
+     *             @OA\Property(property="message", type="string", example="User role updated successfully"),
+     *             @OA\Property(
+     *                 property="data",
+     *                 ref="#/components/schemas/User"
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(response=403, description="Unauthorized - Admin access required"),
+     *     @OA\Response(response=404, description="User not found")
+     * )
+     */
+    public function updateUser(UpdateUserRequest $request, User $user)
+    {
+        try {
+            // Prevent admin from removing their own admin status
+            if ($user->id === auth()->id() && $request->is_admin === false) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'You cannot remove your own admin status'
+                ], 403);
+            }
+
+            $user->update($request->validated());
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'User role updated successfully',
+                'data' => $user->fresh()
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('User role update error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to update user role',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * @OA\Put(
+     *     path="/v1/accounts/profile",
+     *     tags={"Account Management"},
+     *     summary="Update user profile",
+     *     description="Update authenticated user's profile information",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             @OA\Property(property="name", type="string", example="John Doe"),
+     *             @OA\Property(property="email", type="string", format="email", example="user@example.com"),
+     *             @OA\Property(property="phone", type="string", example="+201234567890")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Profile updated successfully",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="success"),
+     *             @OA\Property(property="message", type="string", example="Profile updated successfully"),
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="object",
+     *                 ref="#/components/schemas/User"
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(response=422, description="Validation error"),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
+     */
+    public function updateProfile(UpdateProfileRequest $request)
+    {
+        try {
+            $user = auth()->user();
+            $data = $request->validated();
+
+            // Update user data
+            $updated = $user->update($data);
+            Log::info('Update status: ' . ($updated ? 'success' : 'failed'));
+            Log::info('Updated user data:', $user->toArray());
+
+            // If email was changed, require re-verification
+            if ($user->wasChanged('email')) {
+                Log::info('Email was changed, requiring verification');
+                $user->email_verified_at = null;
+                $user->save();
+                
+                // Send new verification email
+                $user->sendEmailVerificationNotification();
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Profile updated successfully. Please verify your new email address.',
+                    'data' => $user->fresh(),
+                    'email_verification_required' => true
+                ]);
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Profile updated successfully',
+                'data' => $user->fresh()
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Profile update error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to update profile',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * @OA\Post(
+     *     path="/v1/accounts/avatar",
+     *     tags={"Account Management"},
+     *     summary="Update user avatar",
+     *     description="Upload or update user profile picture. Supports JPG, JPEG, PNG, GIF, BMP, SVG, WEBP formats up to 5MB",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\MediaType(
+     *             mediaType="multipart/form-data",
+     *             @OA\Schema(
+     *                 @OA\Property(
+     *                     property="avatar",
+     *                     type="string",
+     *                     format="binary",
+     *                     description="User profile image (jpg, jpeg, png, gif, bmp, svg, webp up to 5MB)"
+     *                 )
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Avatar updated successfully",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="success"),
+     *             @OA\Property(property="message", type="string", example="Avatar updated successfully"),
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="object",
+     *                 ref="#/components/schemas/User"
+     *             )
+     *         )
+     *     )
+     * )
+     */
+    public function updateAvatar(Request $request)
+    {
+        try {
+            $request->validate([
+                'avatar' => 'required|file|image|mimes:jpeg,png,jpg,gif,bmp,svg,webp|max:5120' // 5MB max
+            ]);
+
+            $user = Auth::user();
+
+            // Delete old avatar if exists
+            if ($user->avatar) {
+                Storage::disk('public')->delete($user->avatar);
+            }
+
+            // Store new avatar with original extension
+            $file = $request->file('avatar');
+            $extension = $file->getClientOriginalExtension();
+            $avatarPath = $file->storeAs(
+                'avatars', 
+                'user_' . $user->id . '_' . time() . '.' . $extension, 
+                'public'
+            );
+
+            $user->update(['avatar' => $avatarPath]);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Avatar updated successfully',
+                'data' => $user->fresh()
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Avatar update error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to update avatar',
                 'error' => $e->getMessage()
             ], 500);
         }
