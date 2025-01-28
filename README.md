@@ -62,7 +62,7 @@ A robust RESTful API for managing anime content, built with Laravel. This API pr
   - PDO
   - Tokenizer
   - XML
-  - GD (for image processing)
+  
 
 ## Installation
 
