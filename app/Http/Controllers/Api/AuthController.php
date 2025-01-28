@@ -42,19 +42,59 @@ use App\Http\Requests\VerifyOtpRequest;
 use App\Mail\TwoFactorCode as TwoFactorCodeMail;
 
 /**
+ * @OA\Info(
+ *     version="1.0.0",
+ *     title="AnimeTower API Documentation",
+ *     description="API documentation for AnimeTower application"
+ * )
+ */
+
+/**
  * @OA\Tag(
  *     name="Authentication",
- *     description="API Endpoints for user authentication"
+ *     description="API Endpoints for user authentication",
+ *     @OA\ExternalDocumentation(
+ *         description="Learn more about authentication",
+ *         url="https://example.com/docs/authentication"
+ *     )
  * )
+ * 
+ * @OA\Tag(
+ *     name="Two-Factor Authentication",
+ *     description="API Endpoints for 2FA management"
+ * )
+ * 
  * @OA\Tag(
  *     name="Email Verification",
  *     description="API Endpoints for email verification"
  * )
+ * 
  * @OA\Tag(
  *     name="Password Management",
  *     description="API Endpoints for password management"
  * )
+ * 
+ * @OA\Tag(
+ *     name="User Management",
+ *     description="API Endpoints for user management"
+ * )
+ * 
+ * @OA\Tag(
+ *     name="Account Management",
+ *     description="API Endpoints for account settings and profile"
+ * )
+ * 
+ * @OA\Tag(
+ *     name="Genres",
+ *     description="API Endpoints for genre management"
+ * )
+ * 
+ * @OA\Tag(
+ *     name="Anime",
+ *     description="API Endpoints for anime management"
+ * )
  */
+
 class AuthController extends Controller
 {
     /**
@@ -62,18 +102,33 @@ class AuthController extends Controller
      *     path="/v1/accounts/login",
      *     tags={"Authentication"},
      *     summary="Login user and get token",
-     *     description="Authenticate user and return access token. If 2FA is enabled, two_factor_code is required.",
+     *     description="Authenticates user credentials and returns access token. Process varies based on account status:
+     *     - If email not verified: Returns error and sends verification code
+     *     - If 2FA enabled: First attempt sends OTP, second attempt requires OTP code
+     *     - If all verified: Returns access token immediately",
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
      *             required={"email","password"},
-     *             @OA\Property(property="email", type="string", format="email", example="user@example.com"),
-     *             @OA\Property(property="password", type="string", format="password", example="password123"),
+     *             @OA\Property(
+     *                 property="email",
+     *                 type="string",
+     *                 format="email",
+     *                 example="user@example.com",
+     *                 description="User's registered email address"
+     *             ),
+     *             @OA\Property(
+     *                 property="password",
+     *                 type="string",
+     *                 format="password",
+     *                 example="password123",
+     *                 description="User's password"
+     *             ),
      *             @OA\Property(
      *                 property="two_factor_code",
      *                 type="string",
-     *                 example="nullable",
-     *                 description="Required if 2FA is enabled. Get code from /2fa/send-otp endpoint",
+     *                 example="QPZ23R",
+     *                 description="Required only if 2FA is enabled. Get code from /2fa/send-otp endpoint",
      *                 nullable=true
      *             )
      *         )
@@ -92,23 +147,23 @@ class AuthController extends Controller
      *                     type="object",
      *                     @OA\Property(property="id", type="integer", example=1),
      *                     @OA\Property(property="name", type="string", example="John Doe"),
-     *                     @OA\Property(property="email", type="string", example="user@example.com"),
-     *                     @OA\Property(property="phone", type="string", example="+201234567890"),
+     *                     @OA\Property(property="email", type="string", format="email", example="user@example.com"),
+     *                     @OA\Property(property="phone", type="string", example="+967777777777"),
      *                     @OA\Property(property="email_verified_at", type="string", format="date-time"),
      *                     @OA\Property(property="is_admin", type="boolean", example=false),
-     *                     @OA\Property(property="two_factor_enabled", type="boolean", example=true)
+     *                     @OA\Property(property="two_factor_enabled", type="boolean", example=true),
+     *                     @OA\Property(property="created_at", type="string", format="date-time"),
+     *                     @OA\Property(property="updated_at", type="string", format="date-time")
      *                 ),
      *                 @OA\Property(property="token", type="string", example="eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1..."),
      *                 @OA\Property(property="refresh_token", type="string", example="def502..."),
-     *                 @OA\Property(property="token_type", type="string", example="Bearer"),
-     *                 @OA\Property(property="email_verified", type="boolean", example=true),
-     *                 @OA\Property(property="is_admin", type="boolean", example=false)
+     *                 @OA\Property(property="token_type", type="string", example="Bearer")
      *             )
      *         )
      *     ),
      *     @OA\Response(
      *         response=401,
-     *         description="Invalid credentials or invalid 2FA code",
+     *         description="Authentication failed",
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="error"),
      *             @OA\Property(property="message", type="string", example="The provided credentials are incorrect.")
@@ -116,11 +171,21 @@ class AuthController extends Controller
      *     ),
      *     @OA\Response(
      *         response=403,
-     *         description="2FA code required or email not verified",
+     *         description="Additional verification required",
      *         @OA\JsonContent(
-     *             @OA\Property(property="status", type="string", example="error"),
-     *             @OA\Property(property="message", type="string", example="Two-factor authentication code is required"),
-     *             @OA\Property(property="requires_2fa", type="boolean", example=true)
+     *             oneOf={
+     *                 @OA\Schema(
+     *                     @OA\Property(property="status", type="string", example="error"),
+     *                     @OA\Property(property="message", type="string", example="Email not verified. A new verification code has been sent to your email."),
+     *                     @OA\Property(property="verification_required", type="boolean", example=true),
+     *                     @OA\Property(property="email", type="string", format="email", example="user@example.com")
+     *                 ),
+     *                 @OA\Schema(
+     *                     @OA\Property(property="status", type="string", example="error"),
+     *                     @OA\Property(property="message", type="string", example="Two-factor authentication code is required. Please check your email."),
+     *                     @OA\Property(property="requires_2fa", type="boolean", example=true)
+     *                 )
+     *             }
      *         )
      *     )
      * )
@@ -286,16 +351,44 @@ class AuthController extends Controller
      *     path="/v1/accounts/register",
      *     tags={"Authentication"},
      *     summary="Register a new user",
+     *     description="Creates a new user account and sends email verification code. The user must verify their email before being able to login.",
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
-     *             required={"name","email","phone","password","password_confirmation","is_admin"},
-     *             @OA\Property(property="name", type="string", example="John Doe"),
-     *             @OA\Property(property="email", type="string", format="email", example="user@example.com"),
-     *             @OA\Property(property="phone", type="string", example="+201234567890"),
-     *             @OA\Property(property="password", type="string", format="password", example="password123"),
-     *             @OA\Property(property="password_confirmation", type="string", format="password", example="password123"),
-     *             @OA\Property(property="is_admin", type="boolean", example=false)
+     *             required={"name","email","phone","password","password_confirmation"},
+     *             @OA\Property(
+     *                 property="name",
+     *                 type="string",
+     *                 example="Test User",
+     *                 description="User's full name"
+     *             ),
+     *             @OA\Property(
+     *                 property="email",
+     *                 type="string",
+     *                 format="email",
+     *                 example="user@example.com",
+     *                 description="User's email address (must be unique)"
+     *             ),
+     *             @OA\Property(
+     *                 property="phone",
+     *                 type="string",
+     *                 example="+967777777777",
+     *                 description="User's phone number"
+     *             ),
+     *             @OA\Property(
+     *                 property="password",
+     *                 type="string",
+     *                 format="password",
+     *                 example="password123",
+     *                 description="Password (min 8 characters)"
+     *             ),
+     *             @OA\Property(
+     *                 property="password_confirmation",
+     *                 type="string",
+     *                 format="password",
+     *                 example="password123",
+     *                 description="Must match password field"
+     *             )
      *         )
      *     ),
      *     @OA\Response(
@@ -307,9 +400,16 @@ class AuthController extends Controller
      *             @OA\Property(
      *                 property="data",
      *                 type="object",
-     *                 @OA\Property(property="user", ref="#/components/schemas/User"),
-     *                 @OA\Property(property="token", type="string"),
-     *                 @OA\Property(property="token_type", type="string", example="Bearer")
+     *                 @OA\Property(
+     *                     property="user",
+     *                     type="object",
+     *                     @OA\Property(property="id", type="integer", example=1),
+     *                     @OA\Property(property="name", type="string", example="John Doe"),
+     *                     @OA\Property(property="email", type="string", format="email", example="user@example.com"),
+     *                     @OA\Property(property="phone", type="string", example="+967777777777"),
+     *                     @OA\Property(property="created_at", type="string", format="date-time"),
+     *                     @OA\Property(property="updated_at", type="string", format="date-time")
+     *                 )
      *             )
      *         )
      *     ),
@@ -319,6 +419,22 @@ class AuthController extends Controller
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="error"),
      *             @OA\Property(property="message", type="string", example="The email has already been taken.")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Server error",
+     *         @OA\JsonContent(
+     *             oneOf={
+     *                 @OA\Schema(
+     *                     @OA\Property(property="status", type="string", example="error"),
+     *                     @OA\Property(property="message", type="string", example="Failed to create user account. Please try again.")
+     *                 ),
+     *                 @OA\Schema(
+     *                     @OA\Property(property="status", type="string", example="error"),
+     *                     @OA\Property(property="message", type="string", example="Account created but failed to send verification email. Please request a new verification code.")
+     *                 )
+     *             }
      *         )
      *     )
      * )
@@ -393,11 +509,11 @@ class AuthController extends Controller
     }
 
     /**
-     * @OA\Get(
+     * @OA\Post(
      *     path="/v1/accounts/logout",
      *     tags={"Authentication"},
      *     summary="Logout user",
-     *     description="Revoke the current access token",
+     *     description="Revoke the current access and refresh tokens",
      *     security={{"bearerAuth":{}}},
      *     @OA\Response(
      *         response=200,
@@ -409,9 +525,18 @@ class AuthController extends Controller
      *     ),
      *     @OA\Response(
      *         response=401,
-     *         description="Unauthenticated",
+     *         description="Unauthorized or Invalid token",
      *         @OA\JsonContent(
-     *             @OA\Property(property="message", type="string", example="Unauthenticated")
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="User not authenticated")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Server error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Failed to revoke authentication tokens")
      *         )
      *     )
      * )
@@ -424,34 +549,44 @@ class AuthController extends Controller
             if (!$user) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'User not found'
+                    'message' => 'User not authenticated'
                 ], 401);
             }
 
-            // Get access token
-            $accessToken = $user->token();
-            
-            // Revoke access token
-            DB::table('oauth_access_tokens')
-                ->where('id', $accessToken->id)
-                ->update(['revoked' => true]);
+            try {
+                // Get access token
+                $accessToken = $user->token();
+                
+                // Revoke access token
+                DB::table('oauth_access_tokens')
+                    ->where('id', $accessToken->id)
+                    ->update(['revoked' => true]);
 
-            // Revoke refresh tokens
-            DB::table('oauth_refresh_tokens')
-                ->where('access_token_id', $accessToken->id)
-                ->update(['revoked' => true]);
+                // Revoke refresh tokens
+                DB::table('oauth_refresh_tokens')
+                    ->where('access_token_id', $accessToken->id)
+                    ->update(['revoked' => true]);
 
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Successfully logged out'
-            ]);
+                Log::info('User logged out successfully: ' . $user->id);
 
-        } catch (Exception $e) {
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Successfully logged out'
+                ]);
+
+            } catch (\Exception $e) {
+                Log::error('Token revocation error: ' . $e->getMessage());
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Failed to revoke authentication tokens'
+                ], 500);
+            }
+
+        } catch (\Exception $e) {
             Log::error('Logout error: ' . $e->getMessage());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
             return response()->json([
                 'status' => 'error',
-                'message' => 'An error occurred while logging out'
+                'message' => 'An unexpected error occurred during logout'
             ], 500);
         }
     }
@@ -470,17 +605,24 @@ class AuthController extends Controller
      *             @OA\Property(
      *                 property="data",
      *                 type="object",
-     *                 @OA\Property(property="user", ref="#/components/schemas/User"),
-     *                 @OA\Property(property="is_admin", type="boolean", example=false),
-     *                 @OA\Property(property="email_verified", type="boolean", example=false)
+     *                 @OA\Property(property="user", ref="#/components/schemas/User")
      *             )
      *         )
      *     ),
      *     @OA\Response(
      *         response=401,
-     *         description="Unauthenticated",
+     *         description="User not authenticated",
      *         @OA\JsonContent(
-     *             @OA\Property(property="message", type="string", example="Unauthenticated")
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="User not authenticated")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Server error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Failed to retrieve user data")
      *         )
      *     )
      * )
@@ -488,15 +630,29 @@ class AuthController extends Controller
     public function getUser(): JsonResponse
     {
         try {
+            $user = Auth::user();
+
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User not authenticated'
+                ], 401);
+            }
+
+            Log::info('User data retrieved successfully: ' . $user->id);
+
             return response()->json([
                 'status' => 'success',
-                'data' => Auth::user()
+                'data' => [
+                    'user' => $user
+                ]
             ]);
-        } catch (Exception $e) {
+
+        } catch (\Exception $e) {
             Log::error('Get user error: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'An error occurred while fetching user data.'
+                'message' => 'Failed to retrieve user data'
             ], 500);
         }
     }
@@ -506,12 +662,17 @@ class AuthController extends Controller
      *     path="/v1/accounts/token/refresh",
      *     tags={"Authentication"},
      *     summary="Refresh access token",
-     *     description="Get a new access token using refresh token",
+     *     description="Get a new access token using refresh token. The old tokens will be revoked.",
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
      *             required={"refresh_token"},
-     *             @OA\Property(property="refresh_token", type="string", example="def502...")
+     *             @OA\Property(
+     *                 property="refresh_token",
+     *                 type="string",
+     *                 example="def502...",
+     *                 description="The refresh token received during login"
+     *             )
      *         )
      *     ),
      *     @OA\Response(
@@ -524,8 +685,41 @@ class AuthController extends Controller
      *                 property="data",
      *                 type="object",
      *                 @OA\Property(property="token", type="string", example="eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1..."),
+     *                 @OA\Property(property="refresh_token", type="string", example="def502..."),
      *                 @OA\Property(property="token_type", type="string", example="Bearer")
      *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Invalid token",
+     *         @OA\JsonContent(
+     *             oneOf={
+     *                 @OA\Schema(
+     *                     @OA\Property(property="status", type="string", example="error"),
+     *                     @OA\Property(property="message", type="string", example="Invalid refresh token")
+     *                 ),
+     *                 @OA\Schema(
+     *                     @OA\Property(property="status", type="string", example="error"),
+     *                     @OA\Property(property="message", type="string", example="Invalid access token")
+     *                 )
+     *             }
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=404,
+     *         description="User not found",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="User not found")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Server error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Failed to refresh token")
      *         )
      *     )
      * )
@@ -585,6 +779,7 @@ class AuthController extends Controller
                 'message' => 'Token refreshed successfully',
                 'data' => [
                     'token' => $newToken->accessToken,
+                    'refresh_token' => $refreshToken,
                     'token_type' => 'Bearer'
                 ]
             ]);
@@ -602,13 +797,19 @@ class AuthController extends Controller
      * @OA\Post(
      *     path="/v1/accounts/password/forgot",
      *     tags={"Password Management"},
-     *     summary="Request password reset code",
-     *     description="Send a password reset code to user's email",
+     *     summary="Request password reset",
+     *     description="Send a password reset code to user's email. The code expires after 60 minutes.",
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
      *             required={"email"},
-     *             @OA\Property(property="email", type="string", format="email", example="user@example.com")
+     *             @OA\Property(
+     *                 property="email",
+     *                 type="string",
+     *                 format="email",
+     *                 example="user@example.com",
+     *                 description="Email address of the account to reset"
+     *             )
      *         )
      *     ),
      *     @OA\Response(
@@ -616,7 +817,7 @@ class AuthController extends Controller
      *         description="Reset code sent successfully",
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="success"),
-     *             @OA\Property(property="message", type="string", example="Password reset code sent to your email")
+     *             @OA\Property(property="message", type="string", example="Password reset code has been sent to your email")
      *         )
      *     ),
      *     @OA\Response(
@@ -624,7 +825,23 @@ class AuthController extends Controller
      *         description="User not found",
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="error"),
-     *             @OA\Property(property="message", type="string", example="User not found")
+     *             @OA\Property(property="message", type="string", example="No user found with this email address")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=422,
+     *         description="Validation error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(
+     *                 property="message",
+     *                 type="object",
+     *                 @OA\Property(
+     *                     property="email",
+     *                     type="array",
+     *                     @OA\Items(type="string", example="The email field is required.")
+     *                 )
+     *             )
      *         )
      *     ),
      *     @OA\Response(
@@ -632,8 +849,7 @@ class AuthController extends Controller
      *         description="Server error",
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="error"),
-     *             @OA\Property(property="message", type="string", example="Failed to send reset code"),
-     *             @OA\Property(property="error", type="string")
+     *             @OA\Property(property="message", type="string", example="Failed to process password reset request")
      *         )
      *     )
      * )
@@ -667,13 +883,13 @@ class AuthController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Password reset code sent to your email'
+                'message' => 'Password reset code has been sent to your email'
             ]);
         } catch (Exception $e) {
             Log::error('Forgot password error: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to send reset code',
+                'message' => 'Failed to process password reset request',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -684,15 +900,39 @@ class AuthController extends Controller
      *     path="/v1/accounts/password/reset",
      *     tags={"Password Management"},
      *     summary="Reset password using code",
-     *     description="Reset user's password using the code sent to their email",
+     *     description="Reset user's password using the code sent to their email. The code must be valid and not expired. 
+     *     After successful reset, all existing tokens will be revoked.",
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
      *             required={"email", "code", "password", "password_confirmation"},
-     *             @OA\Property(property="email", type="string", format="email", example="user@example.com"),
-     *             @OA\Property(property="code", type="string", example="ABC123", description="6-character code sent to email"),
-     *             @OA\Property(property="password", type="string", format="password", example="newpassword123", description="Minimum 6 characters"),
-     *             @OA\Property(property="password_confirmation", type="string", example="newpassword123")
+     *             @OA\Property(
+     *                 property="email",
+     *                 type="string",
+     *                 format="email",
+     *                 example="user@example.com",
+     *                 description="Email address of the account"
+     *             ),
+     *             @OA\Property(
+     *                 property="code",
+     *                 type="string",
+     *                 example="ABC123",
+     *                 description="6-character reset code received via email"
+     *             ),
+     *             @OA\Property(
+     *                 property="password",
+     *                 type="string",
+     *                 format="password",
+     *                 example="newpassword123",
+     *                 description="New password (min 8 characters)"
+     *             ),
+     *             @OA\Property(
+     *                 property="password_confirmation",
+     *                 type="string",
+     *                 format="password",
+     *                 example="newpassword123",
+     *                 description="Must match new password"
+     *             )
      *         )
      *     ),
      *     @OA\Response(
@@ -705,10 +945,26 @@ class AuthController extends Controller
      *     ),
      *     @OA\Response(
      *         response=400,
-     *         description="Invalid code",
+     *         description="Reset error",
+     *         @OA\JsonContent(
+     *             oneOf={
+     *                 @OA\Schema(
+     *                     @OA\Property(property="status", type="string", example="error"),
+     *                     @OA\Property(property="message", type="string", example="Invalid reset code")
+     *                 ),
+     *                 @OA\Schema(
+     *                     @OA\Property(property="status", type="string", example="error"),
+     *                     @OA\Property(property="message", type="string", example="Reset code has expired")
+     *                 )
+     *             }
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=404,
+     *         description="User not found",
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="error"),
-     *             @OA\Property(property="message", type="string", example="Invalid or expired reset code")
+     *             @OA\Property(property="message", type="string", example="No user found with this email address")
      *         )
      *     ),
      *     @OA\Response(
@@ -717,14 +973,20 @@ class AuthController extends Controller
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="error"),
      *             @OA\Property(
-     *                 property="errors",
+     *                 property="message",
      *                 type="object",
-     *                 @OA\Property(
-     *                     property="password",
-     *                     type="array",
-     *                     @OA\Items(type="string", example="The password must be at least 6 characters.")
-     *                 )
+     *                 @OA\Property(property="email", type="array", @OA\Items(type="string", example="The email field is required.")),
+     *                 @OA\Property(property="code", type="array", @OA\Items(type="string", example="The code field is required.")),
+     *                 @OA\Property(property="password", type="array", @OA\Items(type="string", example="The password must be at least 8 characters."))
      *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Server error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Failed to reset password")
      *         )
      *     )
      * )
@@ -777,16 +1039,35 @@ class AuthController extends Controller
      * @OA\Post(
      *     path="/v1/accounts/password/change",
      *     tags={"Password Management"},
-     *     summary="Change password for authenticated user",
-     *     description="Change password for logged-in user requiring current password",
+     *     summary="Change user password",
+     *     description="Change password for authenticated user. All existing tokens will be revoked, requiring re-login. 
+     *     A notification will be sent to user's email.",
      *     security={{"bearerAuth":{}}},
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
      *             required={"current_password", "password", "password_confirmation"},
-     *             @OA\Property(property="current_password", type="string", example="oldpassword123"),
-     *             @OA\Property(property="password", type="string", format="password", example="newpassword123", description="Must be different from current password"),
-     *             @OA\Property(property="password_confirmation", type="string", example="newpassword123")
+     *             @OA\Property(
+     *                 property="current_password",
+     *                 type="string",
+     *                 format="password",
+     *                 example="oldpassword123",
+     *                 description="User's current password"
+     *             ),
+     *             @OA\Property(
+     *                 property="password",
+     *                 type="string",
+     *                 format="password",
+     *                 example="newpassword123",
+     *                 description="New password (min 8 characters, must be different from current)"
+     *             ),
+     *             @OA\Property(
+     *                 property="password_confirmation",
+     *                 type="string",
+     *                 format="password",
+     *                 example="newpassword123",
+     *                 description="Must match new password"
+     *             )
      *         )
      *     ),
      *     @OA\Response(
@@ -798,26 +1079,40 @@ class AuthController extends Controller
      *         )
      *     ),
      *     @OA\Response(
+     *         response=401,
+     *         description="Unauthorized",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Unauthenticated")
+     *         )
+     *     ),
+     *     @OA\Response(
      *         response=422,
      *         description="Validation error",
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="error"),
      *             @OA\Property(
-     *                 property="errors",
+     *                 property="message",
      *                 type="object",
      *                 @OA\Property(
      *                     property="current_password",
      *                     type="array",
-     *                     @OA\Items(type="string", example="Your current password is incorrect.")
+     *                     @OA\Items(type="string", example="The current password is incorrect.")
+     *                 ),
+     *                 @OA\Property(
+     *                     property="password",
+     *                     type="array",
+     *                     @OA\Items(type="string", example="The password must be at least 8 characters.")
      *                 )
      *             )
      *         )
      *     ),
      *     @OA\Response(
-     *         response=401,
-     *         description="Unauthenticated",
+     *         response=500,
+     *         description="Server error",
      *         @OA\JsonContent(
-     *             @OA\Property(property="message", type="string", example="Unauthenticated.")
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Failed to change password")
      *         )
      *     )
      * )
@@ -852,14 +1147,26 @@ class AuthController extends Controller
      * @OA\Post(
      *     path="/v1/accounts/email/verify",
      *     tags={"Email Verification"},
-     *     summary="Verify email with code",
-     *     description="Verify user's email address using the code sent to their email",
+     *     summary="Verify email address",
+     *     description="Verify user's email address using the verification code sent to their email. 
+     *     The code expires after 60 minutes.",
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
      *             required={"email", "code"},
-     *             @OA\Property(property="email", type="string", format="email", example="user@example.com"),
-     *             @OA\Property(property="code", type="string", example="ABC123", description="6-character verification code")
+     *             @OA\Property(
+     *                 property="email",
+     *                 type="string",
+     *                 format="email",
+     *                 example="user@example.com",
+     *                 description="Email address to verify"
+     *             ),
+     *             @OA\Property(
+     *                 property="code",
+     *                 type="string",
+     *                 example="ABC123",
+     *                 description="6-character verification code received via email"
+     *             )
      *         )
      *     ),
      *     @OA\Response(
@@ -867,15 +1174,40 @@ class AuthController extends Controller
      *         description="Email verified successfully",
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="success"),
-     *             @OA\Property(property="message", type="string", example="Email has been verified")
+     *             @OA\Property(property="message", type="string", example="Email verified successfully"),
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="object",
+     *                 ref="#/components/schemas/User"
+     *             )
      *         )
      *     ),
      *     @OA\Response(
      *         response=400,
-     *         description="Invalid or expired code",
+     *         description="Verification error",
+     *         @OA\JsonContent(
+     *             oneOf={
+     *                 @OA\Schema(
+     *                     @OA\Property(property="status", type="string", example="error"),
+     *                     @OA\Property(property="message", type="string", example="Invalid verification code")
+     *                 ),
+     *                 @OA\Schema(
+     *                     @OA\Property(property="status", type="string", example="error"),
+     *                     @OA\Property(property="message", type="string", example="Verification code has expired")
+     *                 ),
+     *                 @OA\Schema(
+     *                     @OA\Property(property="status", type="string", example="error"),
+     *                     @OA\Property(property="message", type="string", example="Email is already verified")
+     *                 )
+     *             }
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=404,
+     *         description="User not found",
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="error"),
-     *             @OA\Property(property="message", type="string", example="Invalid or expired verification code")
+     *             @OA\Property(property="message", type="string", example="User not found")
      *         )
      *     ),
      *     @OA\Response(
@@ -884,13 +1216,10 @@ class AuthController extends Controller
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="error"),
      *             @OA\Property(
-     *                 property="errors",
+     *                 property="message",
      *                 type="object",
-     *                 @OA\Property(
-     *                     property="email",
-     *                     type="array",
-     *                     @OA\Items(type="string", example="The email field is required.")
-     *                 )
+     *                 @OA\Property(property="email", type="array", @OA\Items(type="string", example="The email field is required.")),
+     *                 @OA\Property(property="code", type="array", @OA\Items(type="string", example="The code field is required."))
      *             )
      *         )
      *     )
@@ -941,37 +1270,56 @@ class AuthController extends Controller
      * @OA\Post(
      *     path="/v1/accounts/email/resend",
      *     tags={"Email Verification"},
-     *     summary="Resend verification code (authenticated)",
-     *     description="Generate and send a new verification code to authenticated user's email",
+     *     summary="Resend verification email",
+     *     description="Send a new verification code to authenticated user's email. Previous code will be invalidated. 
+     *     Limited to 6 requests per minute.",
      *     security={{"bearerAuth":{}}},
      *     @OA\Response(
      *         response=200,
-     *         description="Verification code sent successfully",
+     *         description="Verification email sent successfully",
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="success"),
-     *             @OA\Property(property="message", type="string", example="Verification code sent")
+     *             @OA\Property(property="message", type="string", example="A new verification code has been sent to your email")
      *         )
      *     ),
      *     @OA\Response(
      *         response=400,
-     *         description="Email already verified",
+     *         description="Verification error",
      *         @OA\JsonContent(
-     *             @OA\Property(property="status", type="string", example="error"),
-     *             @OA\Property(property="message", type="string", example="Email already verified")
+     *             oneOf={
+     *                 @OA\Schema(
+     *                     @OA\Property(property="status", type="string", example="error"),
+     *                     @OA\Property(property="message", type="string", example="Email is already verified")
+     *                 ),
+     *                 @OA\Schema(
+     *                     @OA\Property(property="status", type="string", example="error"),
+     *                     @OA\Property(property="message", type="string", example="Previous verification code is still valid")
+     *                 )
+     *             }
      *         )
      *     ),
      *     @OA\Response(
      *         response=401,
-     *         description="Unauthenticated",
+     *         description="Unauthorized",
      *         @OA\JsonContent(
-     *             @OA\Property(property="message", type="string", example="Unauthenticated.")
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Unauthenticated")
      *         )
      *     ),
      *     @OA\Response(
      *         response=429,
      *         description="Too Many Requests",
      *         @OA\JsonContent(
-     *             @OA\Property(property="message", type="string", example="Too many verification attempts. Please try again later.")
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Too many verification requests. Please try again later.")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Server error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Failed to send verification code")
      *         )
      *     )
      * )
@@ -1006,7 +1354,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Verification code sent'
+                'message' => 'Verification email sent'
             ]);
         } catch (Exception $e) {
             return response()->json([
@@ -1022,27 +1370,53 @@ class AuthController extends Controller
      *     path="/v1/accounts/email/status",
      *     tags={"Email Verification"},
      *     summary="Get email verification status",
-     *     description="Check if user's email is verified and if verification code was sent",
+     *     description="Check if user's email is verified and if a verification code is currently active. 
+     *     Used to determine if user needs to verify email or request a new code.",
      *     security={{"bearerAuth":{}}},
      *     @OA\Response(
      *         response=200,
-     *         description="Success",
+     *         description="Status retrieved successfully",
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="success"),
      *             @OA\Property(
      *                 property="data",
      *                 type="object",
-     *                 @OA\Property(property="email_verified", type="boolean", example=false),
-     *                 @OA\Property(property="email", type="string", example="user@example.com"),
-     *                 @OA\Property(property="verification_sent", type="boolean", example=true)
+     *                 @OA\Property(
+     *                     property="email_verified",
+     *                     type="boolean",
+     *                     example=false,
+     *                     description="Whether the email is verified"
+     *                 ),
+     *                 @OA\Property(
+     *                     property="email",
+     *                     type="string",
+     *                     format="email",
+     *                     example="user@example.com",
+     *                     description="User's email address"
+     *                 ),
+     *                 @OA\Property(
+     *                     property="verification_sent",
+     *                     type="boolean",
+     *                     example=true,
+     *                     description="Whether there is an active verification code"
+     *                 )
      *             )
      *         )
      *     ),
      *     @OA\Response(
      *         response=401,
-     *         description="Unauthenticated",
+     *         description="Unauthorized",
      *         @OA\JsonContent(
-     *             @OA\Property(property="message", type="string", example="Unauthenticated.")
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Unauthenticated")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Server error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Failed to get verification status")
      *         )
      *     )
      * )
@@ -1076,18 +1450,25 @@ class AuthController extends Controller
      * @OA\Post(
      *     path="/v1/accounts/email/resend-public",
      *     tags={"Email Verification"},
-     *     summary="Resend verification code (public)",
-     *     description="Generate and send a new verification code without authentication",
+     *     summary="Resend verification email (public)",
+     *     description="Send a new verification code to user's email without requiring authentication. 
+     *     Previous code will be invalidated. Limited to 6 requests per minute.",
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
      *             required={"email"},
-     *             @OA\Property(property="email", type="string", format="email", example="user@example.com")
+     *             @OA\Property(
+     *                 property="email",
+     *                 type="string",
+     *                 format="email",
+     *                 example="user@example.com",
+     *                 description="Email address to send verification code"
+     *             )
      *         )
      *     ),
      *     @OA\Response(
      *         response=200,
-     *         description="Verification code sent successfully",
+     *         description="Verification email sent successfully",
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="success"),
      *             @OA\Property(property="message", type="string", example="A new verification code has been sent to your email")
@@ -1095,10 +1476,26 @@ class AuthController extends Controller
      *     ),
      *     @OA\Response(
      *         response=400,
-     *         description="Email already verified",
+     *         description="Verification error",
+     *         @OA\JsonContent(
+     *             oneOf={
+     *                 @OA\Schema(
+     *                     @OA\Property(property="status", type="string", example="error"),
+     *                     @OA\Property(property="message", type="string", example="Email is already verified")
+     *                 ),
+     *                 @OA\Schema(
+     *                     @OA\Property(property="status", type="string", example="error"),
+     *                     @OA\Property(property="message", type="string", example="Previous verification code is still valid")
+     *                 )
+     *             }
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=404,
+     *         description="User not found",
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="error"),
-     *             @OA\Property(property="message", type="string", example="Email is already verified")
+     *             @OA\Property(property="message", type="string", example="No user found with this email address")
      *         )
      *     ),
      *     @OA\Response(
@@ -1107,14 +1504,26 @@ class AuthController extends Controller
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="error"),
      *             @OA\Property(
-     *                 property="errors",
+     *                 property="message",
      *                 type="object",
-     *                 @OA\Property(
-     *                     property="email",
-     *                     type="array",
-     *                     @OA\Items(type="string", example="We could not find a user with that email address.")
-     *                 )
+     *                 @OA\Property(property="email", type="array", @OA\Items(type="string", example="The email field is required."))
      *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=429,
+     *         description="Too Many Requests",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Too many verification requests. Please try again later.")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Server error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Failed to send verification code")
      *         )
      *     )
      * )
@@ -1166,35 +1575,76 @@ class AuthController extends Controller
      *     path="/v1/users/{user}",
      *     tags={"User Management"},
      *     summary="Update user role and status (Admin only)",
+     *     description="Update user's admin status. Admin cannot remove their own admin status.",
      *     security={{"bearerAuth":{}}},
      *     @OA\Parameter(
      *         name="user",
      *         in="path",
-     *         description="User ID",
+     *         description="ID of user to update",
      *         required=true,
-     *         @OA\Schema(type="integer")
+     *         @OA\Schema(type="integer", format="int64")
      *     ),
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
      *             required={"is_admin"},
-     *             @OA\Property(property="is_admin", type="boolean", example=false, description="User admin status"),
+     *             @OA\Property(
+     *                 property="is_admin",
+     *                 type="boolean",
+     *                 example=false,
+     *                 description="Set user's admin status"
+     *             )
      *         )
      *     ),
      *     @OA\Response(
      *         response=200,
-     *         description="User role updated successfully",
+     *         description="User updated successfully",
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="success"),
      *             @OA\Property(property="message", type="string", example="User role updated successfully"),
-     *             @OA\Property(
-     *                 property="data",
-     *                 ref="#/components/schemas/User"
-     *             )
+     *             @OA\Property(property="data", ref="#/components/schemas/User")
      *         )
      *     ),
-     *     @OA\Response(response=403, description="Unauthorized - Admin access required"),
-     *     @OA\Response(response=404, description="User not found")
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthorized",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Unauthenticated")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=403,
+     *         description="Forbidden",
+     *         @OA\JsonContent(
+     *             oneOf={
+     *                 @OA\Schema(
+     *                     @OA\Property(property="status", type="string", example="error"),
+     *                     @OA\Property(property="message", type="string", example="Admin access required")
+     *                 ),
+     *                 @OA\Schema(
+     *                     @OA\Property(property="status", type="string", example="error"),
+     *                     @OA\Property(property="message", type="string", example="You cannot remove your own admin status")
+     *                 )
+     *             }
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=404,
+     *         description="User not found",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="User not found")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Server error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Failed to update user role")
+     *         )
+     *     )
      * )
      */
     public function updateUser(UpdateUserRequest $request, User $user)
@@ -1231,31 +1681,80 @@ class AuthController extends Controller
      *     path="/v1/accounts/profile",
      *     tags={"Account Management"},
      *     summary="Update user profile",
-     *     description="Update authenticated user's profile information",
+     *     description="Update authenticated user's profile information. If email is changed, verification will be required.",
      *     security={{"bearerAuth":{}}},
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
-     *             @OA\Property(property="name", type="string", example="John Doe"),
-     *             @OA\Property(property="email", type="string", format="email", example="user@example.com"),
-     *             @OA\Property(property="phone", type="string", example="+201234567890")
+     *             @OA\Property(
+     *                 property="name",
+     *                 type="string",
+     *                 example="Test User",
+     *                 description="User's full name"
+     *             ),
+     *             @OA\Property(
+     *                 property="email",
+     *                 type="string",
+     *                 format="email",
+     *                 example="user@example.com",
+     *                 description="User's email address. Changing email requires verification."
+     *             ),
+     *             @OA\Property(
+     *                 property="phone",
+     *                 type="string",
+     *                 example="+967777777777",
+     *                 description="User's phone number"
+     *             )
      *         )
      *     ),
      *     @OA\Response(
      *         response=200,
      *         description="Profile updated successfully",
      *         @OA\JsonContent(
-     *             @OA\Property(property="status", type="string", example="success"),
-     *             @OA\Property(property="message", type="string", example="Profile updated successfully"),
+     *             oneOf={
+     *                 @OA\Schema(
+     *                     @OA\Property(property="status", type="string", example="success"),
+     *                     @OA\Property(property="message", type="string", example="Profile updated successfully"),
+     *                     @OA\Property(property="data", ref="#/components/schemas/User")
+     *                 ),
+     *                 @OA\Schema(
+     *                     @OA\Property(property="status", type="string", example="success"),
+     *                     @OA\Property(property="message", type="string", example="Profile updated successfully. Please verify your new email address."),
+     *                     @OA\Property(property="data", ref="#/components/schemas/User"),
+     *                     @OA\Property(property="email_verification_required", type="boolean", example=true)
+     *                 )
+     *             }
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthorized",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Unauthenticated")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=422,
+     *         description="Validation error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
      *             @OA\Property(
-     *                 property="data",
+     *                 property="message",
      *                 type="object",
-     *                 ref="#/components/schemas/User"
+     *                 @OA\Property(property="email", type="array", @OA\Items(type="string", example="The email has already been taken.")),
+     *                 @OA\Property(property="phone", type="array", @OA\Items(type="string", example="The phone field is required."))
      *             )
      *         )
      *     ),
-     *     @OA\Response(response=422, description="Validation error"),
-     *     @OA\Response(response=401, description="Unauthenticated")
+     *     @OA\Response(
+     *         response=500,
+     *         description="Server error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Failed to update profile")
+     *         )
+     *     )
      * )
      */
     public function updateProfile(UpdateProfileRequest $request)
@@ -1307,18 +1806,20 @@ class AuthController extends Controller
      *     path="/v1/accounts/avatar",
      *     tags={"Account Management"},
      *     summary="Update user avatar",
-     *     description="Upload or update user profile picture. Supports JPG, JPEG, PNG, GIF, BMP, SVG, WEBP formats up to 5MB",
+     *     description="Upload or update user profile picture. Previous avatar will be deleted if it exists. 
+     *     Supports JPG, JPEG, PNG, GIF, BMP, SVG, WEBP formats up to 5MB.",
      *     security={{"bearerAuth":{}}},
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\MediaType(
      *             mediaType="multipart/form-data",
      *             @OA\Schema(
+     *                 required={"avatar"},
      *                 @OA\Property(
      *                     property="avatar",
      *                     type="string",
      *                     format="binary",
-     *                     description="User profile image (jpg, jpeg, png, gif, bmp, svg, webp up to 5MB)"
+     *                     description="Image file (max 5MB). Allowed types: jpg, jpeg, png, gif, bmp, svg, webp"
      *                 )
      *             )
      *         )
@@ -1334,6 +1835,41 @@ class AuthController extends Controller
      *                 type="object",
      *                 ref="#/components/schemas/User"
      *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthorized",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Unauthenticated")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=422,
+     *         description="Validation error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(
+     *                 property="message",
+     *                 type="object",
+     *                 @OA\Property(
+     *                     property="avatar",
+     *                     type="array",
+     *                     @OA\Items(
+     *                         type="string",
+     *                         example="The avatar field is required."
+     *                     )
+     *                 )
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Server error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Failed to update avatar")
      *         )
      *     )
      * )
@@ -1382,15 +1918,20 @@ class AuthController extends Controller
     /**
      * @OA\Post(
      *     path="/v1/accounts/2fa",
-     *     tags={"Account Management"},
+     *     tags={"Two-Factor Authentication"},
      *     summary="Toggle two-factor authentication",
-     *     description="Enable or disable two-factor authentication for the user",
+     *     description="Enable or disable two-factor authentication for the authenticated user. When enabled, login will require an OTP code.",
      *     security={{"bearerAuth":{}}},
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
      *             required={"enable"},
-     *             @OA\Property(property="enable", type="boolean", example=true)
+     *             @OA\Property(
+     *                 property="enable",
+     *                 type="boolean",
+     *                 example=true,
+     *                 description="True to enable 2FA, false to disable it"
+     *             )
      *         )
      *     ),
      *     @OA\Response(
@@ -1398,12 +1939,49 @@ class AuthController extends Controller
      *         description="2FA status updated successfully",
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="success"),
-     *             @OA\Property(property="message", type="string", example="Two-factor authentication has been enabled"),
+     *             @OA\Property(
+     *                 property="message",
+     *                 type="string",
+     *                 example="Two-factor authentication has been enabled",
+     *                 description="Message will indicate whether 2FA was enabled or disabled"
+     *             ),
      *             @OA\Property(
      *                 property="data",
      *                 type="object",
      *                 ref="#/components/schemas/User"
      *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthorized",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Unauthenticated")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=422,
+     *         description="Validation error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(
+     *                 property="message",
+     *                 type="object",
+     *                 @OA\Property(
+     *                     property="enable",
+     *                     type="array",
+     *                     @OA\Items(type="string", example="The enable field is required.")
+     *                 )
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Server error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Failed to update 2FA status")
      *         )
      *     )
      * )
@@ -1440,15 +2018,28 @@ class AuthController extends Controller
     /**
      * @OA\Post(
      *     path="/v1/accounts/2fa/send-otp",
-     *     tags={"Authentication"},
-     *     summary="Send OTP for 2FA",
-     *     description="Send OTP code to user's email after validating credentials. Required before login if 2FA is enabled.",
+     *     tags={"Two-Factor Authentication"},
+     *     summary="Send OTP code for 2FA",
+     *     description="Validates user credentials and sends a one-time password to the user's email for two-factor authentication. 
+     *     The OTP code expires in 10 minutes.",
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
      *             required={"email", "password"},
-     *             @OA\Property(property="email", type="string", format="email", example="user@example.com"),
-     *             @OA\Property(property="password", type="string", format="password", example="password123")
+     *             @OA\Property(
+     *                 property="email",
+     *                 type="string",
+     *                 format="email",
+     *                 example="user@example.com",
+     *                 description="User's registered email address"
+     *             ),
+     *             @OA\Property(
+     *                 property="password",
+     *                 type="string",
+     *                 format="password",
+     *                 example="password123",
+     *                 description="User's password"
+     *             )
      *         )
      *     ),
      *     @OA\Response(
@@ -1460,19 +2051,40 @@ class AuthController extends Controller
      *         )
      *     ),
      *     @OA\Response(
+     *         response=400,
+     *         description="2FA not enabled",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="2FA is not enabled for this account")
+     *         )
+     *     ),
+     *     @OA\Response(
      *         response=401,
-     *         description="Invalid credentials",
+     *         description="Authentication failed",
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="error"),
      *             @OA\Property(property="message", type="string", example="Invalid credentials")
      *         )
      *     ),
      *     @OA\Response(
-     *         response=400,
-     *         description="2FA not enabled",
+     *         response=422,
+     *         description="Validation error",
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="error"),
-     *             @OA\Property(property="message", type="string", example="2FA is not enabled for this account")
+     *             @OA\Property(
+     *                 property="message",
+     *                 type="object",
+     *                 @OA\Property(property="email", type="array", @OA\Items(type="string", example="The email field is required.")),
+     *                 @OA\Property(property="password", type="array", @OA\Items(type="string", example="The password field is required."))
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Server error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Failed to send OTP")
      *         )
      *     )
      * )

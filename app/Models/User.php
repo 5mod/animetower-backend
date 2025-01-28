@@ -14,16 +14,16 @@ use Illuminate\Support\Facades\Log;
 /**
  * @OA\Schema(
  *     schema="User",
- *     required={"name", "email", "phone", "password"},
- *     @OA\Property(property="id", type="integer", format="int64", example=1),
+ *     required={"id", "name", "email"},
+ *     @OA\Property(property="id", type="integer", example=1),
  *     @OA\Property(property="name", type="string", example="John Doe"),
  *     @OA\Property(property="email", type="string", format="email", example="user@example.com"),
- *     @OA\Property(property="phone", type="string", example="+201234567890"),
- *     @OA\Property(property="avatar", type="string", nullable=true, example="avatars/user-avatar.jpg"),
+ *     @OA\Property(property="phone", type="string", example="+967777777777"),
+ *     @OA\Property(property="email_verified_at", type="string", format="date-time", nullable=true),
+ *     @OA\Property(property="avatar", type="string", nullable=true, example="avatars/user_1_1234567890.jpg"),
  *     @OA\Property(property="is_admin", type="boolean", example=false),
  *     @OA\Property(property="is_active", type="boolean", example=true),
  *     @OA\Property(property="two_factor_enabled", type="boolean", example=false),
- *     @OA\Property(property="email_verified_at", type="string", format="date-time", nullable=true),
  *     @OA\Property(property="created_at", type="string", format="date-time"),
  *     @OA\Property(property="updated_at", type="string", format="date-time")
  * )
