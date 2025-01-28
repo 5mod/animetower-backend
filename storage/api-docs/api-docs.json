@@ -15,7 +15,7 @@
     },
     "servers": [
         {
-            "url": "http://my-default-host.com",
+            "url": "http://localhost:8000/api",
             "description": "AnimeTower API Server"
         }
     ],
@@ -230,6 +230,12 @@
                                         "example": 12,
                                         "nullable": true
                                     },
+                                    "trailer_url": {
+                                        "description": "URL to trailer video (optional)",
+                                        "type": "string",
+                                        "example": "https://youtube.com/watch?v=...",
+                                        "nullable": true
+                                    },
                                     "genre_ids": {
                                         "description": "Array of genre IDs",
                                         "type": "array",
@@ -238,20 +244,8 @@
                                         },
                                         "example": [
                                             1,
-                                            2
+                                            3
                                         ]
-                                    },
-                                    "cover_image": {
-                                        "description": "URL of cover image (optional)",
-                                        "type": "string",
-                                        "example": "https://example.com/image.jpg",
-                                        "nullable": true
-                                    },
-                                    "trailer_url": {
-                                        "description": "URL of trailer video (optional)",
-                                        "type": "string",
-                                        "example": "https://youtube.com/watch?v=abc123",
-                                        "nullable": true
                                     }
                                 },
                                 "type": "object"
@@ -507,8 +501,8 @@
                                         "format": "date",
                                         "example": "2024-01-15"
                                     },
-                                    "cover_image": {
-                                        "description": "New cover image (optional)",
+                                    "poster_image": {
+                                        "description": "New poster image (optional)",
                                         "type": "string",
                                         "format": "binary"
                                     },
@@ -756,6 +750,166 @@
                                         "message": {
                                             "type": "string",
                                             "example": "Anime not found"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/v1/anime/{id}/poster": {
+            "post": {
+                "tags": [
+                    "Anime"
+                ],
+                "summary": "Upload anime poster image",
+                "description": "Upload a new poster image for an anime (Admin only)",
+                "operationId": "3d08750811ee3b2ff9ad7534ed0824e5",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID of anime",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "poster_image"
+                                ],
+                                "properties": {
+                                    "poster_image": {
+                                        "description": "Image file (max 5MB). Allowed types: jpg, jpeg, png, gif, bmp, svg, webp",
+                                        "type": "string",
+                                        "format": "binary"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Poster image updated successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Poster image updated successfully"
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/Anime"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "error"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Unauthenticated"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "error"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Admin access required"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Anime not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "error"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Anime not found"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "error"
+                                        },
+                                        "message": {
+                                            "properties": {
+                                                "poster_image": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string",
+                                                        "example": "The poster image is required."
+                                                    }
+                                                }
+                                            },
+                                            "type": "object"
                                         }
                                     },
                                     "type": "object"

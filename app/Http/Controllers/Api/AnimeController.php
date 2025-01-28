@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Anime;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * @OA\Tag(
@@ -25,7 +26,7 @@ use Illuminate\Support\Str;
  *     @OA\Property(property="type", type="string", enum={"TV", "Movie", "OVA"}, example="TV"),
  *     @OA\Property(property="status", type="string", enum={"ongoing", "completed"}, example="ongoing"),
  *     @OA\Property(property="episodes", type="integer", nullable=true, example=13),
- *     @OA\Property(property="cover_image", type="string", nullable=true, example="https://example.com/cover.jpg"),
+ *     @OA\Property(property="poster_image", type="string", nullable=true, example="posters/mha.jpg"),
  *     @OA\Property(property="trailer_url", type="string", nullable=true, example="https://youtube.com/watch?v=abc123"),
  *     @OA\Property(property="created_at", type="string", format="date-time"),
  *     @OA\Property(property="updated_at", type="string", format="date-time"),
@@ -187,25 +188,18 @@ class AnimeController extends Controller
      *                 nullable=true
      *             ),
      *             @OA\Property(
+     *                 property="trailer_url",
+     *                 type="string",
+     *                 example="https://youtube.com/watch?v=...",
+     *                 description="URL to trailer video (optional)",
+     *                 nullable=true
+     *             ),
+     *             @OA\Property(
      *                 property="genre_ids",
      *                 type="array",
      *                 @OA\Items(type="integer"),
-     *                 example={1, 2},
+     *                 example={1, 3},
      *                 description="Array of genre IDs"
-     *             ),
-     *             @OA\Property(
-     *                 property="cover_image",
-     *                 type="string",
-     *                 example="https://example.com/image.jpg",
-     *                 description="URL of cover image (optional)",
-     *                 nullable=true
-     *             ),
-     *             @OA\Property(
-     *                 property="trailer_url",
-     *                 type="string",
-     *                 example="https://youtube.com/watch?v=abc123",
-     *                 description="URL of trailer video (optional)",
-     *                 nullable=true
      *             )
      *         )
      *     ),
@@ -266,19 +260,18 @@ class AnimeController extends Controller
      */
     public function store(Request $request)
     {
-        try {
-            $request->validate([
-                'title' => 'required|string|max:255|unique:anime',
-                'synopsis' => 'required|string',
-                'type' => 'required|string|in:TV,Movie,OVA',
-                'status' => 'required|string|in:ongoing,completed',
-                'episodes' => 'nullable|integer',
-                'genre_ids' => 'required|array',
-                'genre_ids.*' => 'exists:genres,id',
-                'cover_image' => 'nullable|string',
-                'trailer_url' => 'nullable|string|url'
-            ]);
+        $request->validate([
+            'title' => 'required|string|max:255|unique:anime',
+            'synopsis' => 'required|string',
+            'type' => 'required|string|in:TV,Movie,OVA',
+            'status' => 'required|string|in:ongoing,completed',
+            'episodes' => 'nullable|integer',
+            'trailer_url' => 'nullable|string|url',
+            'genre_ids' => 'required|array',
+            'genre_ids.*' => 'exists:genres,id'
+        ]);
 
+        try {
             $anime = Anime::create([
                 'title' => $request->title,
                 'slug' => Str::slug($request->title),
@@ -286,7 +279,6 @@ class AnimeController extends Controller
                 'type' => $request->type,
                 'status' => $request->status,
                 'episodes' => $request->episodes,
-                'cover_image' => $request->cover_image,
                 'trailer_url' => $request->trailer_url
             ]);
 
@@ -297,6 +289,7 @@ class AnimeController extends Controller
                 'message' => 'Anime created successfully',
                 'data' => $anime->load('genres')
             ], 201);
+
         } catch (\Exception $e) {
             \Log::error('Anime creation error: ' . $e->getMessage());
             return response()->json([
@@ -361,6 +354,121 @@ class AnimeController extends Controller
     }
 
     /**
+     * @OA\Post(
+     *     path="/v1/anime/{id}/poster",
+     *     tags={"Anime"},
+     *     summary="Upload anime poster image",
+     *     description="Upload a new poster image for an anime (Admin only)",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         description="ID of anime",
+     *         required=true,
+     *         @OA\Schema(type="integer", format="int64")
+     *     ),
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\MediaType(
+     *             mediaType="multipart/form-data",
+     *             @OA\Schema(
+     *                 required={"poster_image"},
+     *                 @OA\Property(
+     *                     property="poster_image",
+     *                     type="string",
+     *                     format="binary",
+     *                     description="Image file (max 5MB). Allowed types: jpg, jpeg, png, gif, bmp, svg, webp"
+     *                 )
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Poster image updated successfully",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="success"),
+     *             @OA\Property(property="message", type="string", example="Poster image updated successfully"),
+     *             @OA\Property(property="data", ref="#/components/schemas/Anime")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthorized",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Unauthenticated")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=403,
+     *         description="Forbidden",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Admin access required")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=404,
+     *         description="Anime not found",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Anime not found")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=422,
+     *         description="Validation error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(
+     *                 property="message",
+     *                 type="object",
+     *                 @OA\Property(
+     *                     property="poster_image",
+     *                     type="array",
+     *                     @OA\Items(type="string", example="The poster image is required.")
+     *                 )
+     *             )
+     *         )
+     *     )
+     * )
+     */
+    public function updatePoster(Request $request, Anime $anime)
+    {
+        $request->validate([
+            'poster_image' => 'required|image|mimes:jpg,jpeg,png,gif,bmp,svg,webp|max:5120'
+        ]);
+
+        try {
+            // Delete old poster image if exists
+            if ($anime->poster_image) {
+                Storage::disk('public')->delete($anime->poster_image);
+            }
+
+            // Store new poster image
+            $path = $request->file('poster_image')->store('posters', 'public');
+
+            $anime->update([
+                'poster_image' => $path
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Poster image updated successfully',
+                'data' => $anime->load('genres')
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Poster image upload error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to upload poster image',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * @OA\Put(
      *     path="/v1/anime/{id}",
      *     tags={"Anime"},
@@ -400,10 +508,10 @@ class AnimeController extends Controller
      *                 example="2024-01-15"
      *             ),
      *             @OA\Property(
-     *                 property="cover_image",
+     *                 property="poster_image",
      *                 type="string",
      *                 format="binary",
-     *                 description="New cover image (optional)"
+     *                 description="New poster image (optional)"
      *             ),
      *             @OA\Property(
      *                 property="genres",
@@ -487,7 +595,6 @@ class AnimeController extends Controller
             'episodes' => 'nullable|integer',
             'genre_ids' => 'required|array',
             'genre_ids.*' => 'exists:genres,id',
-            'cover_image' => 'nullable|string',
             'trailer_url' => 'nullable|string|url'
         ]);
 
@@ -498,7 +605,6 @@ class AnimeController extends Controller
             'type' => $request->type,
             'status' => $request->status,
             'episodes' => $request->episodes,
-            'cover_image' => $request->cover_image,
             'trailer_url' => $request->trailer_url
         ]);
 

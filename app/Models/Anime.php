@@ -37,7 +37,7 @@ class Anime extends Model
         'type',
         'status',
         'episodes',
-        'cover_image',
+        'poster_image',
         'trailer_url',
         'score'
     ];

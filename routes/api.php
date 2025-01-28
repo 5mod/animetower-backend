@@ -58,6 +58,7 @@ Route::prefix('v1')->group(function () {
             Route::put('anime/{anime}', [AnimeController::class, 'update']);
             Route::delete('anime/{anime}', [AnimeController::class, 'destroy']);
             Route::post('anime/{anime}/restore', [AnimeController::class, 'restore']);
+            Route::post('anime/{anime}/poster', [AnimeController::class, 'updatePoster']);
 
             // Genre CRUD operations
             Route::post('genres', [GenreController::class, 'store']);
