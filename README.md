@@ -49,7 +49,7 @@ A robust RESTful API for managing anime content, built with Laravel. This API pr
 
 ## Requirements
 
-- PHP >= 8.1
+- PHP >= 8.2
 - Composer
 - MySQL >= 8.0
 - Laravel 11
