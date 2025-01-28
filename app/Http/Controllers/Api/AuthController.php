@@ -128,7 +128,7 @@ class AuthController extends Controller
     public function login(LoginRequest $request): JsonResponse
     {
         try {
-            // Only attempt with email and password, ignore two_factor_code
+            // Verify credentials
             if (!Auth::attempt([
                 'email' => $request->email, 
                 'password' => $request->password
@@ -141,14 +141,21 @@ class AuthController extends Controller
 
             $user = Auth::user();
 
+            // Check if user is active
+            if (!$user->is_active) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Your account has been deactivated. Please contact support.'
+                ], 403);
+            }
+
             // Check if email is verified
             if (!$user->hasVerifiedEmail()) {
-                // Generate new verification code if needed
-                if (!EmailVerificationCode::where('user_id', $user->id)
-                    ->where('expires_at', '>', now())
-                    ->exists()) {
-                    
+                try {
+                    // Generate new verification code
                     $code = strtoupper(Str::random(6));
+                    
+                    // Save verification code
                     EmailVerificationCode::updateOrCreate(
                         ['user_id' => $user->id],
                         [
@@ -156,80 +163,120 @@ class AuthController extends Controller
                             'expires_at' => now()->addMinutes(60)
                         ]
                     );
+                    Log::info('Generated verification code for user: ' . $user->id);
 
-                    // Send notification using template
-                    $user->notify(new VerifyEmail($code));
+                    try {
+                        // Send verification using notification
+                        $user->notify(new \App\Notifications\VerifyEmail($code));
+                        Log::info('Verification email sent successfully to: ' . $user->email);
+
+                    } catch (\Exception $e) {
+                        Log::error('Failed to send verification email: ' . $e->getMessage());
+                        return response()->json([
+                            'status' => 'error',
+                            'message' => 'Failed to send verification email. Please try again.'
+                        ], 500);
+                    }
+
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Email not verified. A new verification code has been sent to your email.',
+                        'verification_required' => true,
+                        'email' => $user->email
+                    ], 403);
+
+                } catch (\Exception $e) {
+                    Log::error('Email verification error: ' . $e->getMessage());
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Failed to process email verification. Please try again.'
+                    ], 500);
                 }
-
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Please verify your email address before logging in. A new verification code has been sent to your email.',
-                    'verification_required' => true,
-                    'email' => $user->email
-                ], 403);
             }
 
-            // Check if 2FA is enabled
+            // Handle 2FA
             if ($user->two_factor_enabled) {
                 if (!$request->two_factor_code) {
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'Two-factor authentication code is required',
-                        'requires_2fa' => true
-                    ], 403);
-                }
+                    try {
+                        $code = strtoupper(Str::random(6));
+                        
+                        $user->update([
+                            'two_factor_code' => $code,
+                            'two_factor_expires_at' => now()->addMinutes(10)
+                        ]);
 
-                // Verify provided code
-                if ($request->two_factor_code !== $user->two_factor_code) {
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'Invalid verification code'
-                    ], 401);
+                        // Send email
+                        Mail::to($user)->send(new TwoFactorCodeMail($code));
+                        Log::info('2FA code sent successfully to: ' . $user->email);
+
+                        return response()->json([
+                            'status' => 'error',
+                            'message' => 'Two-factor authentication code is required. Please check your email.',
+                            'requires_2fa' => true
+                        ], 403);
+
+                    } catch (\Exception $e) {
+                        Log::error('Failed to send 2FA code: ' . $e->getMessage());
+                        return response()->json([
+                            'status' => 'error',
+                            'message' => 'Failed to send authentication code. Please try again.'
+                        ], 500);
+                    }
                 }
 
                 if ($user->two_factor_expires_at->isPast()) {
                     return response()->json([
                         'status' => 'error',
-                        'message' => 'Verification code has expired'
+                        'message' => 'Two-factor authentication code has expired. Please request a new code.'
                     ], 401);
                 }
             }
 
-            // Clear any existing OTP codes
-            $user->update([
-                'two_factor_code' => null,
-                'two_factor_expires_at' => null
-            ]);
+            try {
+                // Clear any existing OTP codes
+                $user->update([
+                    'two_factor_code' => null,
+                    'two_factor_expires_at' => null
+                ]);
 
-            // Create token
-            $tokenResult = $user->createToken('auth-token');
+                // Create token
+                $tokenResult = $user->createToken('auth-token');
 
-            // Create refresh token
-            $refreshTokenId = Str::random(40);
-            DB::table('oauth_refresh_tokens')->insert([
-                'id' => $refreshTokenId,
-                'access_token_id' => $tokenResult->token->id,
-                'revoked' => false,
-                'expires_at' => now()->addDays(30)
-            ]);
+                // Create refresh token
+                $refreshTokenId = Str::random(40);
+                DB::table('oauth_refresh_tokens')->insert([
+                    'id' => $refreshTokenId,
+                    'access_token_id' => $tokenResult->token->id,
+                    'revoked' => false,
+                    'expires_at' => now()->addDays(30)
+                ]);
 
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Successfully logged in',
-                'data' => [
-                    'user' => $user,
-                    'token' => $tokenResult->accessToken,
-                    'refresh_token' => $refreshTokenId,
-                    'token_type' => 'Bearer',
-                    'email_verified' => true,
-                    'is_admin' => $user->is_admin
-                ]
-            ]);
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Successfully logged in',
+                    'data' => [
+                        'user' => $user,
+                        'token' => $tokenResult->accessToken,
+                        'refresh_token' => $refreshTokenId,
+                        'token_type' => 'Bearer',
+                        'email_verified' => true,
+                        'is_admin' => $user->is_admin
+                    ]
+                ]);
+
+            } catch (Exception $e) {
+                Log::error('Token creation error: ' . $e->getMessage());
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Failed to create authentication token. Please try again.'
+                ], 500);
+            }
+
         } catch (Exception $e) {
             Log::error('Login error: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'An error occurred while logging in.'
+                'message' => 'An unexpected error occurred. Please try again later.'
             ], 500);
         }
     }
