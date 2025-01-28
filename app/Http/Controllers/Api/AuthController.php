@@ -328,49 +328,66 @@ class AuthController extends Controller
         try {
             Log::info('Starting registration for email: ' . $request->email);
             
-            $user = User::create([
-                'name' => $request->name,
-                'email' => $request->email,
-                'phone' => $request->phone,
-                'password' => Hash::make($request->password),
-            ]);
-            Log::info('User created with ID: ' . $user->id);
+            // Check if email already exists
+            if (User::where('email', $request->email)->exists()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'This email address is already registered.'
+                ], 422);
+            }
 
-            $token = $user->createToken('auth-token');
-            Log::info('Token created');
-            
-            // Generate verification code
-            $code = strtoupper(Str::random(6));
-            
-            // Save code
-            EmailVerificationCode::updateOrCreate(
-                ['user_id' => $user->id],
-                [
+            try {
+                $user = User::create([
+                    'name' => $request->name,
+                    'email' => $request->email,
+                    'phone' => $request->phone,
+                    'password' => Hash::make($request->password),
+                ]);
+                Log::info('User created with ID: ' . $user->id);
+
+            } catch (QueryException $e) {
+                Log::error('Database error during user creation: ' . $e->getMessage());
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Failed to create user account. Please try again.'
+                ], 500);
+            }
+
+            try {
+                // Generate verification code
+                $code = strtoupper(Str::random(6));
+                
+                EmailVerificationCode::create([
+                    'user_id' => $user->id,
                     'code' => $code,
                     'expires_at' => now()->addMinutes(60)
-                ]
-            );
+                ]);
 
-            // Send notification using template
-            $user->notify(new VerifyEmail($code));
-            Log::info('Verification email sent successfully');
+                // Send verification email
+                $user->notify(new VerifyEmail($code));
+                Log::info('Verification email sent successfully');
 
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Successfully registered. Please check your email to verify your account.',
-                'data' => [
-                    'user' => $user,
-                    'token' => $token->accessToken,
-                    'token_type' => 'Bearer',
-                ]
-            ], 201);
-        } catch (Exception $e) {
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Successfully registered. Please check your email to verify your account.',
+                    'data' => [
+                        'user' => $user
+                    ]
+                ], 201);
+
+            } catch (\Exception $e) {
+                Log::error('Failed to send verification email: ' . $e->getMessage());
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Account created but failed to send verification email. Please request a new verification code.'
+                ], 500);
+            }
+
+        } catch (\Exception $e) {
             Log::error('Registration error: ' . $e->getMessage());
-            Log::error($e->getTraceAsString());
             return response()->json([
                 'status' => 'error',
-                'message' => 'An error occurred while registering. Please try again.',
-                'error' => $e->getMessage()
+                'message' => 'An unexpected error occurred during registration. Please try again.'
             ], 500);
         }
     }
