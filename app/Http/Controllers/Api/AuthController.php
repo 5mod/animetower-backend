@@ -36,6 +36,10 @@ use Illuminate\Validation\ValidationException;
 use App\Http\Requests\UpdateUserRequest;
 use App\Http\Requests\UpdateProfileRequest;
 use Illuminate\Support\Facades\Storage;
+use App\Http\Requests\TwoFactorAuthRequest;
+use App\Notifications\TwoFactorCode;
+use App\Http\Requests\VerifyOtpRequest;
+use App\Mail\TwoFactorCode as TwoFactorCodeMail;
 
 /**
  * @OA\Tag(
@@ -58,13 +62,20 @@ class AuthController extends Controller
      *     path="/v1/accounts/login",
      *     tags={"Authentication"},
      *     summary="Login user and get token",
-     *     description="Authenticate user and return access token. Email must be verified.",
+     *     description="Authenticate user and return access token. If 2FA is enabled, two_factor_code is required.",
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
      *             required={"email","password"},
      *             @OA\Property(property="email", type="string", format="email", example="user@example.com"),
-     *             @OA\Property(property="password", type="string", format="password", example="password123")
+     *             @OA\Property(property="password", type="string", format="password", example="password123"),
+     *             @OA\Property(
+     *                 property="two_factor_code",
+     *                 type="string",
+     *                 example="nullable",
+     *                 description="Required if 2FA is enabled. Get code from /2fa/send-otp endpoint",
+     *                 nullable=true
+     *             )
      *         )
      *     ),
      *     @OA\Response(
@@ -84,17 +95,20 @@ class AuthController extends Controller
      *                     @OA\Property(property="email", type="string", example="user@example.com"),
      *                     @OA\Property(property="phone", type="string", example="+201234567890"),
      *                     @OA\Property(property="email_verified_at", type="string", format="date-time"),
-     *                     @OA\Property(property="is_admin", type="boolean", example=false)
+     *                     @OA\Property(property="is_admin", type="boolean", example=false),
+     *                     @OA\Property(property="two_factor_enabled", type="boolean", example=true)
      *                 ),
      *                 @OA\Property(property="token", type="string", example="eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1..."),
+     *                 @OA\Property(property="refresh_token", type="string", example="def502..."),
      *                 @OA\Property(property="token_type", type="string", example="Bearer"),
-     *                 @OA\Property(property="email_verified", type="boolean", example=true)
+     *                 @OA\Property(property="email_verified", type="boolean", example=true),
+     *                 @OA\Property(property="is_admin", type="boolean", example=false)
      *             )
      *         )
      *     ),
      *     @OA\Response(
      *         response=401,
-     *         description="Invalid credentials",
+     *         description="Invalid credentials or invalid 2FA code",
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="error"),
      *             @OA\Property(property="message", type="string", example="The provided credentials are incorrect.")
@@ -102,20 +116,11 @@ class AuthController extends Controller
      *     ),
      *     @OA\Response(
      *         response=403,
-     *         description="Email not verified",
+     *         description="2FA code required or email not verified",
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="error"),
-     *             @OA\Property(property="message", type="string", example="Please verify your email address before logging in."),
-     *             @OA\Property(property="verification_required", type="boolean", example=true),
-     *             @OA\Property(property="email", type="string", example="user@example.com")
-     *         )
-     *     ),
-     *     @OA\Response(
-     *         response=500,
-     *         description="Server error",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="status", type="string", example="error"),
-     *             @OA\Property(property="message", type="string", example="An error occurred while logging in. Please try again.")
+     *             @OA\Property(property="message", type="string", example="Two-factor authentication code is required"),
+     *             @OA\Property(property="requires_2fa", type="boolean", example=true)
      *         )
      *     )
      * )
@@ -123,7 +128,11 @@ class AuthController extends Controller
     public function login(LoginRequest $request): JsonResponse
     {
         try {
-            if (!Auth::attempt($request->validated())) {
+            // Only attempt with email and password, ignore two_factor_code
+            if (!Auth::attempt([
+                'email' => $request->email, 
+                'password' => $request->password
+            ])) {
                 return response()->json([
                     'status' => 'error',
                     'message' => 'The provided credentials are incorrect.'
@@ -160,6 +169,38 @@ class AuthController extends Controller
                 ], 403);
             }
 
+            // Check if 2FA is enabled
+            if ($user->two_factor_enabled) {
+                if (!$request->two_factor_code) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Two-factor authentication code is required',
+                        'requires_2fa' => true
+                    ], 403);
+                }
+
+                // Verify provided code
+                if ($request->two_factor_code !== $user->two_factor_code) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Invalid verification code'
+                    ], 401);
+                }
+
+                if ($user->two_factor_expires_at->isPast()) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Verification code has expired'
+                    ], 401);
+                }
+            }
+
+            // Clear any existing OTP codes
+            $user->update([
+                'two_factor_code' => null,
+                'two_factor_expires_at' => null
+            ]);
+
             // Create token
             $tokenResult = $user->createToken('auth-token');
 
@@ -186,10 +227,9 @@ class AuthController extends Controller
             ]);
         } catch (Exception $e) {
             Log::error('Login error: ' . $e->getMessage());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
             return response()->json([
                 'status' => 'error',
-                'message' => 'An error occurred while logging in. Please try again.'
+                'message' => 'An error occurred while logging in.'
             ], 500);
         }
     }
@@ -1271,6 +1311,155 @@ class AuthController extends Controller
                 'status' => 'error',
                 'message' => 'Failed to update avatar',
                 'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * @OA\Post(
+     *     path="/v1/accounts/2fa",
+     *     tags={"Account Management"},
+     *     summary="Toggle two-factor authentication",
+     *     description="Enable or disable two-factor authentication for the user",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"enable"},
+     *             @OA\Property(property="enable", type="boolean", example=true)
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="2FA status updated successfully",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="success"),
+     *             @OA\Property(property="message", type="string", example="Two-factor authentication has been enabled"),
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="object",
+     *                 ref="#/components/schemas/User"
+     *             )
+     *         )
+     *     )
+     * )
+     */
+    public function toggleTwoFactorAuth(TwoFactorAuthRequest $request)
+    {
+        try {
+            $user = auth()->user();
+            $enable = $request->enable;
+
+            $user->update([
+                'two_factor_enabled' => $enable,
+                // Reset code and expiry when disabling
+                'two_factor_code' => $enable ? $user->two_factor_code : null,
+                'two_factor_expires_at' => $enable ? $user->two_factor_expires_at : null
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Two-factor authentication has been ' . ($enable ? 'enabled' : 'disabled'),
+                'data' => $user->fresh()
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('2FA toggle error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to update 2FA status',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * @OA\Post(
+     *     path="/v1/accounts/2fa/send-otp",
+     *     tags={"Authentication"},
+     *     summary="Send OTP for 2FA",
+     *     description="Send OTP code to user's email after validating credentials. Required before login if 2FA is enabled.",
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"email", "password"},
+     *             @OA\Property(property="email", type="string", format="email", example="user@example.com"),
+     *             @OA\Property(property="password", type="string", format="password", example="password123")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="OTP sent successfully",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="success"),
+     *             @OA\Property(property="message", type="string", example="OTP has been sent to your email")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Invalid credentials",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="Invalid credentials")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=400,
+     *         description="2FA not enabled",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", example="error"),
+     *             @OA\Property(property="message", type="string", example="2FA is not enabled for this account")
+     *         )
+     *     )
+     * )
+     */
+    public function sendOtp(Request $request)
+    {
+        try {
+            $request->validate([
+                'email' => 'required|email|exists:users,email',
+                'password' => 'required|string'
+            ]);
+
+            // Verify credentials first
+            if (!Auth::attempt(['email' => $request->email, 'password' => $request->password])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Invalid credentials'
+                ], 401);
+            }
+
+            $user = User::where('email', $request->email)->first();
+
+            if (!$user->two_factor_enabled) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => '2FA is not enabled for this account'
+                ], 400);
+            }
+
+            // Generate new code
+            $code = strtoupper(Str::random(6));
+            
+            // Save code
+            $user->update([
+                'two_factor_code' => $code,
+                'two_factor_expires_at' => now()->addMinutes(10)
+            ]);
+
+            // Send email with code
+            Mail::to($user)->send(new TwoFactorCodeMail($code));
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'OTP has been sent to your email'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Send OTP error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to send OTP'
             ], 500);
         }
     }

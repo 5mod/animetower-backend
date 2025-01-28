@@ -27,6 +27,7 @@ Route::prefix('v1')->group(function () {
         Route::post('password/reset', [AuthController::class, 'resetPassword']);
         Route::post('email/verify', [AuthController::class, 'verifyEmail']);
         Route::post('email/resend-public', [AuthController::class, 'resendVerificationEmailPublic']);
+        Route::post('2fa/send-otp', [AuthController::class, 'sendOtp']);
     });
 
     // Public anime & genre routes
@@ -47,6 +48,7 @@ Route::prefix('v1')->group(function () {
                     ->middleware('throttle:6,1');
             Route::put('profile', [AuthController::class, 'updateProfile']);
             Route::post('avatar', [AuthController::class, 'updateAvatar']);
+            Route::post('2fa', [AuthController::class, 'toggleTwoFactorAuth']);
         });
 
         // Admin only routes

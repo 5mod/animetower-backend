@@ -44,4 +44,15 @@ class Kernel extends HttpKernel
         'active' => \App\Http\Middleware\IsActive::class,
     ];
 
+    /**
+     * The application's route middleware.
+     *
+     * These middleware may be assigned to groups or used individually.
+     *
+     * @var array<string, class-string|string>
+     */
+    protected $routeMiddleware = [
+        // ... other middlewares ...
+        '2fa' => \App\Http\Middleware\TwoFactorAuth::class,
+    ];
 } 

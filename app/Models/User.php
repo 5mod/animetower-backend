@@ -21,6 +21,8 @@ use Illuminate\Support\Facades\Log;
  *     @OA\Property(property="phone", type="string", example="+201234567890"),
  *     @OA\Property(property="avatar", type="string", nullable=true, example="avatars/user-avatar.jpg"),
  *     @OA\Property(property="is_admin", type="boolean", example=false),
+ *     @OA\Property(property="is_active", type="boolean", example=true),
+ *     @OA\Property(property="two_factor_enabled", type="boolean", example=false),
  *     @OA\Property(property="email_verified_at", type="string", format="date-time", nullable=true),
  *     @OA\Property(property="created_at", type="string", format="date-time"),
  *     @OA\Property(property="updated_at", type="string", format="date-time")
@@ -39,10 +41,14 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $fillable = [
         'name',
         'email',
-        'phone',
         'password',
+        'phone',
+        'avatar',
+        'two_factor_enabled',
+        'two_factor_code',
+        'two_factor_expires_at',
         'is_admin',
-        'avatar'
+        'is_active'
     ];
 
     /**
@@ -62,7 +68,8 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
-        'password' => 'hashed',
+        'two_factor_expires_at' => 'datetime',
+        'two_factor_enabled' => 'boolean',
         'is_admin' => 'boolean',
         'is_active' => 'boolean'
     ];

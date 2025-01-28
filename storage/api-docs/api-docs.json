@@ -308,7 +308,7 @@
                     "Authentication"
                 ],
                 "summary": "Login user and get token",
-                "description": "Authenticate user and return access token. Email must be verified.",
+                "description": "Authenticate user and return access token. If 2FA is enabled, two_factor_code is required.",
                 "operationId": "932422f291bca3e4113a70f4516aec31",
                 "requestBody": {
                     "required": true,
@@ -329,6 +329,12 @@
                                         "type": "string",
                                         "format": "password",
                                         "example": "password123"
+                                    },
+                                    "two_factor_code": {
+                                        "description": "Required if 2FA is enabled. Get code from /2fa/send-otp endpoint",
+                                        "type": "string",
+                                        "example": "nullable",
+                                        "nullable": true
                                     }
                                 },
                                 "type": "object"
@@ -378,6 +384,10 @@
                                                         "is_admin": {
                                                             "type": "boolean",
                                                             "example": false
+                                                        },
+                                                        "two_factor_enabled": {
+                                                            "type": "boolean",
+                                                            "example": true
                                                         }
                                                     },
                                                     "type": "object"
@@ -386,6 +396,10 @@
                                                     "type": "string",
                                                     "example": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1..."
                                                 },
+                                                "refresh_token": {
+                                                    "type": "string",
+                                                    "example": "def502..."
+                                                },
                                                 "token_type": {
                                                     "type": "string",
                                                     "example": "Bearer"
@@ -393,6 +407,10 @@
                                                 "email_verified": {
                                                     "type": "boolean",
                                                     "example": true
+                                                },
+                                                "is_admin": {
+                                                    "type": "boolean",
+                                                    "example": false
                                                 }
                                             },
                                             "type": "object"
@@ -404,7 +422,7 @@
                         }
                     },
                     "401": {
-                        "description": "Invalid credentials",
+                        "description": "Invalid credentials or invalid 2FA code",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -424,7 +442,7 @@
                         }
                     },
                     "403": {
-                        "description": "Email not verified",
+                        "description": "2FA code required or email not verified",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -435,35 +453,11 @@
                                         },
                                         "message": {
                                             "type": "string",
-                                            "example": "Please verify your email address before logging in."
+                                            "example": "Two-factor authentication code is required"
                                         },
-                                        "verification_required": {
+                                        "requires_2fa": {
                                             "type": "boolean",
                                             "example": true
-                                        },
-                                        "email": {
-                                            "type": "string",
-                                            "example": "user@example.com"
-                                        }
-                                    },
-                                    "type": "object"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Server error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "properties": {
-                                        "status": {
-                                            "type": "string",
-                                            "example": "error"
-                                        },
-                                        "message": {
-                                            "type": "string",
-                                            "example": "An error occurred while logging in. Please try again."
                                         }
                                     },
                                     "type": "object"
@@ -1658,6 +1652,163 @@
                 ]
             }
         },
+        "/v1/accounts/2fa": {
+            "post": {
+                "tags": [
+                    "Account Management"
+                ],
+                "summary": "Toggle two-factor authentication",
+                "description": "Enable or disable two-factor authentication for the user",
+                "operationId": "d3f1fe3310348337d120f4b7178e2927",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "enable"
+                                ],
+                                "properties": {
+                                    "enable": {
+                                        "type": "boolean",
+                                        "example": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "2FA status updated successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Two-factor authentication has been enabled"
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/User"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/v1/accounts/2fa/send-otp": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Send OTP for 2FA",
+                "description": "Send OTP code to user's email after validating credentials. Required before login if 2FA is enabled.",
+                "operationId": "ffecb8c3a724f230dd92bee84d1bd2c0",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email",
+                                    "password"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "example": "user@example.com"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "format": "password",
+                                        "example": "password123"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OTP sent successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "OTP has been sent to your email"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid credentials",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "error"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Invalid credentials"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "2FA not enabled",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "error"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "2FA is not enabled for this account"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/v1/genres": {
             "get": {
                 "tags": [
@@ -2044,6 +2195,14 @@
                         "nullable": true
                     },
                     "is_admin": {
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "is_active": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "two_factor_enabled": {
                         "type": "boolean",
                         "example": false
                     },
