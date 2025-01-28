@@ -10,14 +10,14 @@ use Illuminate\Routing\Controller as BaseController;
  * @OA\Info(
  *     version="1.0.0",
  *     title="AnimeTower API Documentation",
- *     description="API documentation for AnimeTower application",
+ *     description="API documentation for AnimeTower",
  *     @OA\Contact(
  *         email="mahmoud@7modo.com",
  *         name="AnimeTower Support"
  *     ),
  *     @OA\License(
- *         name="MIT",
- *         url="https://opensource.org/licenses/MIT"
+ *         name="View on GitHub",
+ *         url="https://github.com/5mod/animetower-backend"
  *     )
  * )
  *
@@ -37,7 +37,7 @@ use Illuminate\Routing\Controller as BaseController;
  *     name="Authentication",
  *     description="API Endpoints for user authentication",
  *     @OA\ExternalDocumentation(
- *         url="https://example.com/docs/authentication",
+ *         url="https://laravel.com/docs/11.x/authentication",
  *         description="Learn more about authentication"
  *     )
  * )

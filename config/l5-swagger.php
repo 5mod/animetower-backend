@@ -5,7 +5,7 @@ return [
     'documentations' => [
         'default' => [
             'api' => [
-                'title' => 'L5 Swagger UI',
+                'title' => 'AnimeTower API',
             ],
 
             'routes' => [
@@ -325,7 +325,7 @@ return [
          * Add this section to configure Swagger UI
          */
         'swagger_ui_config' => [
-            'docExpansion' => 'list',   // Change this from 'none' to 'list'
+            'docExpansion' => 'list',
             'persistAuthorization' => true,
             'displayRequestDuration' => true,
             'filter' => true,

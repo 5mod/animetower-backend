@@ -16,8 +16,8 @@ return new class extends Migration
             $table->string('title');
             $table->string('slug')->unique();
             $table->text('synopsis');
-            $table->string('type')->default('TV'); // TV, Movie, OVA
-            $table->string('status')->default('ongoing'); // ongoing, completed
+            $table->string('type')->default('TV');
+            $table->string('status')->default('ongoing');
             $table->integer('episodes')->nullable();
             $table->string('cover_image')->nullable();
             $table->string('trailer_url')->nullable();

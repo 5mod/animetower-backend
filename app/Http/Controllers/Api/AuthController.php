@@ -55,7 +55,7 @@ use App\Mail\TwoFactorCode as TwoFactorCodeMail;
  *     description="API Endpoints for user authentication",
  *     @OA\ExternalDocumentation(
  *         description="Learn more about authentication",
- *         url="https://example.com/docs/authentication"
+ *         url="https://laravel.com/docs/11.x/authentication"
  *     )
  * )
  * 

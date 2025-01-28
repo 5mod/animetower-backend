@@ -7,12 +7,7 @@ use App\Models\Genre;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
-/**
- * @OA\Tag(
- *     name="Genres",
- *     description="API Endpoints for genre management"
- * )
- */
+
 class GenreController extends Controller
 {
     /**

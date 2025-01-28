@@ -73,32 +73,32 @@ Route::prefix('v1')->group(function () {
     });
 });
 
-// Test routes (should be removed in production)
-Route::prefix('test')->group(function () {
-    Route::get('/auth', function (Request $request) {
-        return [
-            'token_in_header' => $request->header('Authorization'),
-            'user' => auth()->user(),
-            'is_authenticated' => auth()->check()
-        ];
-    })->middleware('auth:api');
+// Test routes
+// Route::prefix('test')->group(function () {
+//     Route::get('/auth', function (Request $request) {
+//         return [
+//             'token_in_header' => $request->header('Authorization'),
+//             'user' => auth()->user(),
+//             'is_authenticated' => auth()->check()
+//         ];
+//     })->middleware('auth:api');
 
-    Route::get('/email', function () {
-        try {
-            Log::info('Attempting to send test email');
-            Mail::to('test@example.com')->send(new \App\Mail\TestMail());
-            Log::info('Test email sent successfully');
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Test email sent successfully'
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Failed to send test email: ' . $e->getMessage());
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to send test email',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    });
-});
+//     Route::get('/email', function () {
+//         try {
+//             Log::info('Attempting to send test email');
+//             Mail::to('test@example.com')->send(new \App\Mail\TestMail());
+//             Log::info('Test email sent successfully');
+//             return response()->json([
+//                 'status' => 'success',
+//                 'message' => 'Test email sent successfully'
+//             ]);
+//         } catch (\Exception $e) {
+//             Log::error('Failed to send test email: ' . $e->getMessage());
+//             return response()->json([
+//                 'status' => 'error',
+//                 'message' => 'Failed to send test email',
+//                 'error' => $e->getMessage()
+//             ], 500);
+//         }
+//     });
+// });

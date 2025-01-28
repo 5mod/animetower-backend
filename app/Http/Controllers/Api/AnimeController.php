@@ -8,46 +8,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 
-/**
- * @OA\Tag(
- *     name="Anime",
- *     description="API Endpoints for anime management"
- * )
- */
 
-/**
- * @OA\Schema(
- *     schema="Anime",
- *     required={"id", "title", "synopsis", "type", "status"},
- *     @OA\Property(property="id", type="integer", example=1),
- *     @OA\Property(property="title", type="string", example="My Hero Academia"),
- *     @OA\Property(property="slug", type="string", example="my-hero-academia"),
- *     @OA\Property(property="synopsis", type="string", example="In a world where people with superpowers known as 'Quirks' are the norm..."),
- *     @OA\Property(property="type", type="string", enum={"TV", "Movie", "OVA"}, example="TV"),
- *     @OA\Property(property="status", type="string", enum={"ongoing", "completed"}, example="ongoing"),
- *     @OA\Property(property="episodes", type="integer", nullable=true, example=13),
- *     @OA\Property(property="poster_image", type="string", nullable=true, example="posters/mha.jpg"),
- *     @OA\Property(property="trailer_url", type="string", nullable=true, example="https://youtube.com/watch?v=abc123"),
- *     @OA\Property(property="created_at", type="string", format="date-time"),
- *     @OA\Property(property="updated_at", type="string", format="date-time"),
- *     @OA\Property(
- *         property="genres",
- *         type="array",
- *         @OA\Items(ref="#/components/schemas/Genre")
- *     )
- * )
- */
 
-/**
- * @OA\Schema(
- *     schema="Genre",
- *     required={"id", "name"},
- *     @OA\Property(property="id", type="integer", example=1),
- *     @OA\Property(property="name", type="string", example="Action"),
- *     @OA\Property(property="created_at", type="string", format="date-time"),
- *     @OA\Property(property="updated_at", type="string", format="date-time")
- * )
- */
+
+
 
 
 class AnimeController extends Controller
@@ -388,7 +352,10 @@ class AnimeController extends Controller
      *         @OA\JsonContent(
      *             @OA\Property(property="status", type="string", example="success"),
      *             @OA\Property(property="message", type="string", example="Poster image updated successfully"),
-     *             @OA\Property(property="data", ref="#/components/schemas/Anime")
+     *             @OA\Property(
+     *                 property="data",
+     *                 ref="#/components/schemas/Anime"
+     *             )
      *         )
      *     ),
      *     @OA\Response(
@@ -485,39 +452,46 @@ class AnimeController extends Controller
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
+     *             required={"title", "synopsis", "type", "status", "genre_ids"},
      *             @OA\Property(
      *                 property="title",
      *                 type="string",
-     *                 example="Updated Anime Title"
+     *                 example="My Hero Academia"
      *             ),
      *             @OA\Property(
-     *                 property="description",
+     *                 property="synopsis",
      *                 type="string",
-     *                 example="Updated description"
+     *                 example="In a world where people with superpowers known as 'Quirks' are the norm..."
+     *             ),
+     *             @OA\Property(
+     *                 property="type",
+     *                 type="string",
+     *                 enum={"TV", "Movie", "OVA"},
+     *                 example="TV"
      *             ),
      *             @OA\Property(
      *                 property="status",
      *                 type="string",
      *                 enum={"ongoing", "completed"},
-     *                 example="completed"
+     *                 example="ongoing"
      *             ),
      *             @OA\Property(
-     *                 property="release_date",
+     *                 property="episodes",
+     *                 type="integer",
+     *                 example=13,
+     *                 nullable=true
+     *             ),
+     *             @OA\Property(
+     *                 property="trailer_url",
      *                 type="string",
-     *                 format="date",
-     *                 example="2024-01-15"
+     *                 example="https://youtube.com/watch?v=abc123",
+     *                 nullable=true
      *             ),
      *             @OA\Property(
-     *                 property="poster_image",
-     *                 type="string",
-     *                 format="binary",
-     *                 description="New poster image (optional)"
-     *             ),
-     *             @OA\Property(
-     *                 property="genres",
+     *                 property="genre_ids",
      *                 type="array",
      *                 @OA\Items(type="integer"),
-     *                 example={1, 3}
+     *                 example={1, 2}
      *             )
      *         )
      *     ),
@@ -545,43 +519,19 @@ class AnimeController extends Controller
      *     ),
      *     @OA\Response(
      *         response=401,
-     *         description="Unauthorized",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="status", type="string", example="error"),
-     *             @OA\Property(property="message", type="string", example="Unauthenticated")
-     *         )
+     *         description="Unauthorized"
      *     ),
      *     @OA\Response(
      *         response=403,
-     *         description="Forbidden",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="status", type="string", example="error"),
-     *             @OA\Property(property="message", type="string", example="Admin access required")
-     *         )
+     *         description="Forbidden"
      *     ),
      *     @OA\Response(
      *         response=404,
-     *         description="Anime not found",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="status", type="string", example="error"),
-     *             @OA\Property(property="message", type="string", example="Anime not found")
-     *         )
+     *         description="Anime not found"
      *     ),
      *     @OA\Response(
      *         response=422,
-     *         description="Validation error",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="status", type="string", example="error"),
-     *             @OA\Property(
-     *                 property="message",
-     *                 type="object",
-     *                 @OA\Property(
-     *                     property="status",
-     *                     type="array",
-     *                     @OA\Items(type="string", example="The selected status is invalid.")
-     *                 )
-     *             )
-     *         )
+     *         description="Validation error"
      *     )
      * )
      */

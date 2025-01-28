@@ -1,66 +1,128 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# AnimeTower API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A robust RESTful API for managing anime content, built with Laravel. This API provides comprehensive endpoints for anime management, user authentication, and content organization.
 
-## About Laravel
+## Features
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+### Authentication & Authorization
+- JWT-based authentication using Laravel Passport
+- Two-factor authentication (2FA) with time-based codes
+- Role-based access control (Admin/User)
+- Email verification system
+- Secure password reset functionality
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+### User Management
+- Complete user registration and login system
+- Profile management with avatar support
+- Admin/User role distinction
+- Two-factor authentication toggle
+- Account status control
+- Profile picture upload and management
+- Email verification with expiring codes
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### Anime Management
+- Complete CRUD operations for anime entries
+- Poster image upload and management
+- Soft delete and restore functionality
+- Advanced filtering and search capabilities
+- Pagination support
+- Anime categorization with genres
+- Trailer URL support
+- Episode tracking
+- Status tracking (ongoing/completed...etc)
+- Type categorization (TV/Movie/OVA...etc)
 
-## Learning Laravel
+### Genre System
+- Genre categorization and management
+- Many-to-many relationships with anime
+- Soft delete support for genres
+- Genre restoration capability
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### Media Management
+- Image upload support for:
+  - User avatars
+  - Anime posters
+- Secure file storage
+- File validation
+- Automatic old file cleanup
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Requirements
 
-## Laravel Sponsors
+- PHP >= 8.1
+- Composer
+- MySQL >= 8.0
+- Laravel 11
+- PHP Extensions:
+  - BCMath
+  - Ctype
+  - JSON
+  - Mbstring
+  - OpenSSL
+  - PDO
+  - Tokenizer
+  - XML
+  - GD (for image processing)
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+## Installation
 
-### Premium Partners
+1. Clone the repository:
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+bash
+git clone https://github.com/5mod/animetower-backend.git
+cd animetower-backend
 
-## Contributing
+2. Install dependencies:
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+bash
+composer install
 
-## Code of Conduct
+3. Create and configure environment file:
+bash
+cp .env.example .env
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
 
-## Security Vulnerabilities
+4. Configure your database and mail settings in `.env`:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=anime-tower
+DB_USERNAME=your_username
+DB_PASSWORD=your_password
+MAIL_MAILER=smtp
+MAIL_HOST=your_mail_host
+MAIL_PORT=your_mail_port
+MAIL_USERNAME=your_mail_username
+MAIL_PASSWORD=your_mail_password
+MAIL_ENCRYPTION=your_mail_encryption
+MAIL_FROM_ADDRESS=your_email
+MAIL_FROM_NAME="${APP_NAME}"
+PASSPORT_CLIENT_ID=your_passport_client_id
+PASSPORT_CLIENT_SECRET=your_passport_client_secret
 
-## License
+5. Run the setup commands:
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+bash
+php artisan storage:link
+php artisan key:generate
+php artisan migrate:fresh
+php artisan passport:install --api
+php artisan passport:client --personal
+
+6. Run the development server:
+
+bash
+php artisan serve
+
+7. Generate API documentation:
+
+bash
+php artisan l5-swagger:generate
+
+## API Documentation
+
+The API documentation is available at:
+
+http://localhost:8000/api/documentation
