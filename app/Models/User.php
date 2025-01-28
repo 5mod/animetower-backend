@@ -14,8 +14,10 @@ use Illuminate\Support\Facades\Log;
 /**
  * @OA\Schema(
  *     schema="User",
- *     required={"id", "name", "email"},
- *     @OA\Property(property="id", type="integer", example=1),
+ *     required={"id", "name", "email", "phone"},
+ *     title="User Model",
+ *     description="User model representing registered users in the system",
+ *     @OA\Property(property="id", type="integer", format="int64", example=1),
  *     @OA\Property(property="name", type="string", example="John Doe"),
  *     @OA\Property(property="email", type="string", format="email", example="user@example.com"),
  *     @OA\Property(property="phone", type="string", example="+967777777777"),

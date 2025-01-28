@@ -8,20 +8,44 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 /**
  * @OA\Schema(
  *     schema="Anime",
- *     required={"title", "slug", "synopsis"},
+ *     required={"id", "title", "synopsis", "type", "status"},
+ *     title="Anime Model",
+ *     description="Anime model representing anime entries in the system",
  *     @OA\Property(property="id", type="integer", format="int64", example=1),
- *     @OA\Property(property="title", type="string", example="Naruto"),
- *     @OA\Property(property="slug", type="string", example="naruto"),
- *     @OA\Property(property="synopsis", type="string", example="A young ninja seeks to become the leader of his village"),
- *     @OA\Property(property="type", type="string", example="TV"),
- *     @OA\Property(property="status", type="string", example="ongoing"),
- *     @OA\Property(property="episodes", type="integer", example=220),
- *     @OA\Property(property="cover_image", type="string", example="naruto.jpg"),
- *     @OA\Property(property="trailer_url", type="string", example="https://youtube.com/watch?v=..."),
- *     @OA\Property(property="score", type="number", format="float", example=4.5),
+ *     @OA\Property(property="title", type="string", example="My Hero Academia"),
+ *     @OA\Property(property="slug", type="string", example="my-hero-academia"),
+ *     @OA\Property(
+ *         property="synopsis", 
+ *         type="string", 
+ *         example="In a world where people with superpowers known as 'Quirks' are the norm..."
+ *     ),
+ *     @OA\Property(
+ *         property="type", 
+ *         type="string", 
+ *         enum={"TV", "Movie", "OVA"}, 
+ *         example="TV",
+ *         description="Type of anime content"
+ *     ),
+ *     @OA\Property(
+ *         property="status", 
+ *         type="string", 
+ *         enum={"ongoing", "completed"}, 
+ *         example="ongoing",
+ *         description="Current airing status"
+ *     ),
+ *     @OA\Property(property="episodes", type="integer", nullable=true, example=13),
+ *     @OA\Property(property="poster_image", type="string", nullable=true, example="posters/mha.jpg"),
+ *     @OA\Property(property="trailer_url", type="string", nullable=true, example="https://youtube.com/watch?v=abc123"),
+ *     @OA\Property(property="score", type="number", format="float", example=4.5, nullable=true),
  *     @OA\Property(property="created_at", type="string", format="date-time"),
  *     @OA\Property(property="updated_at", type="string", format="date-time"),
- *     @OA\Property(property="deleted_at", type="string", format="date-time", nullable=true)
+ *     @OA\Property(property="deleted_at", type="string", format="date-time", nullable=true),
+ *     @OA\Property(
+ *         property="genres",
+ *         type="array",
+ *         description="Associated genres",
+ *         @OA\Items(ref="#/components/schemas/Genre")
+ *     )
  * )
  */
 class Anime extends Model

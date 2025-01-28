@@ -14,11 +14,10 @@ return new class extends Migration
         Schema::dropIfExists('anime_genre');
         
         Schema::create('anime_genre', function (Blueprint $table) {
-            // Foreign keys with explicit table names
             $table->unsignedBigInteger('anime_id');
             $table->unsignedBigInteger('genre_id');
             
-            // Create the foreign key constraints
+            
             $table->foreign('anime_id')
                   ->references('id')
                   ->on('anime')
@@ -29,7 +28,6 @@ return new class extends Migration
                   ->on('genres')
                   ->onDelete('cascade');
 
-            // Set composite primary key
             $table->primary(['anime_id', 'genre_id']);
             
             $table->timestamps();
