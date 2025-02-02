@@ -116,4 +116,4 @@ php artisan l5-swagger:generate
 
 The API documentation is available at:
 
-http://localhost:8000/api/documentation
+https://animetower-backend.7modo.com/api/documentation
