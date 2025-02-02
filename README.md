@@ -53,15 +53,6 @@ A robust RESTful API for managing anime content, built with Laravel. This API pr
 - Composer
 - MySQL >= 8.0
 - Laravel 11
-- PHP Extensions:
-  - BCMath
-  - Ctype
-  - JSON
-  - Mbstring
-  - OpenSSL
-  - PDO
-  - Tokenizer
-  - XML
   
 
 ## Installation
@@ -85,9 +76,9 @@ cp .env.example .env
 4. Configure your database and mail settings in `.env`:
 
 env
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
+DB_CONNECTION=DB
+DB_HOST=Your DB host
+DB_PORT=Your DB port
 DB_DATABASE=anime-tower
 DB_USERNAME=your_username
 DB_PASSWORD=your_password
