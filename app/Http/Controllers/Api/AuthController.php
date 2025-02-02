@@ -388,6 +388,12 @@ class AuthController extends Controller
      *                 format="password",
      *                 example="password123",
      *                 description="Must match password field"
+     *             ),
+     *             @OA\Property(
+     *                 property="is_admin",
+     *                 type="boolean",
+     *                 example=false,
+     *                 description="Whether the user is an admin"
      *             )
      *         )
      *     ),

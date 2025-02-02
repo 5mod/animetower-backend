@@ -1108,6 +1108,11 @@
                                         "type": "string",
                                         "format": "password",
                                         "example": "password123"
+                                    },
+                                    "is_admin": {
+                                        "description": "Whether the user is an admin",
+                                        "type": "boolean",
+                                        "example": false
                                     }
                                 },
                                 "type": "object"

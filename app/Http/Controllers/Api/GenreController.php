@@ -53,11 +53,18 @@ class GenreController extends Controller
      */
     public function index()
     {
-        $genres = Genre::withCount('anime')->get();
-        return response()->json([
-            'status' => 'success',
-            'data' => $genres
-        ]);
+        try {
+            $genres = Genre::withCount('anime')->get();
+            return response()->json([
+                'status' => 'success',
+                'data' => $genres
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to retrieve genres'
+            ], 500);
+        }
     }
 
     /**
@@ -130,22 +137,34 @@ class GenreController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255|unique:genres',
-            'description' => 'nullable|string'
-        ]);
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255|unique:genres',
+                'description' => 'nullable|string'
+            ]);
 
-        $genre = Genre::create([
-            'name' => $request->name,
-            'slug' => Str::slug($request->name),
-            'description' => $request->description
-        ]);
+            $genre = Genre::create([
+                'name' => $validated['name'],
+                'slug' => Str::slug($validated['name']),
+                'description' => $validated['description'] ?? null
+            ]);
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Genre created successfully',
-            'data' => $genre
-        ], 201);
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Genre created successfully',
+                'data' => $genre
+            ], 201);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to create genre'
+            ], 500);
+        }
     }
 
     /**
@@ -195,11 +214,18 @@ class GenreController extends Controller
      */
     public function show(Genre $genre)
     {
-        $genre->load('anime');
-        return response()->json([
-            'status' => 'success',
-            'data' => $genre
-        ]);
+        try {
+            $genre->load('anime');
+            return response()->json([
+                'status' => 'success',
+                'data' => $genre
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to retrieve genre details'
+            ], 500);
+        }
     }
 
     /**
@@ -287,22 +313,34 @@ class GenreController extends Controller
      */
     public function update(Request $request, Genre $genre)
     {
-        $request->validate([
-            'name' => 'required|string|max:255|unique:genres,name,' . $genre->id,
-            'description' => 'nullable|string'
-        ]);
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255|unique:genres,name,' . $genre->id,
+                'description' => 'nullable|string'
+            ]);
 
-        $genre->update([
-            'name' => $request->name,
-            'slug' => Str::slug($request->name),
-            'description' => $request->description
-        ]);
+            $genre->update([
+                'name' => $validated['name'],
+                'slug' => Str::slug($validated['name']),
+                'description' => $validated['description'] ?? null
+            ]);
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Genre updated successfully',
-            'data' => $genre
-        ]);
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Genre updated successfully',
+                'data' => $genre
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to update genre'
+            ], 500);
+        }
     }
 
     /**
@@ -355,10 +393,17 @@ class GenreController extends Controller
      */
     public function destroy(Genre $genre)
     {
-        $genre->delete();
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Genre deleted successfully'
-        ]);
+        try {
+            $genre->delete();
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Genre deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to delete genre'
+            ], 500);
+        }
     }
 }
