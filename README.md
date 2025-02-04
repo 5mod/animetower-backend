@@ -1,4 +1,7 @@
 # AnimeTower API
+The API documentation is available at:
+
+https://animetower-backend.7modo.com/api/documentation
 
 A robust RESTful API for managing anime content, built with Laravel. This API provides comprehensive endpoints for anime management, user authentication, and content organization.
 
@@ -114,6 +117,4 @@ php artisan l5-swagger:generate
 
 ## API Documentation
 
-The API documentation is available at:
 
-https://animetower-backend.7modo.com/api/documentation
